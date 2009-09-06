@@ -1,11 +1,48 @@
 #!/bin/bash
  
 FILE=$1
-NUM_OF_LINE=$2
 
+# parse "Ii:1:001:1" based on semicolon
+parse4(){
+	line="$@"
+	echo $line
+
+	OIFS=$IFS
+	IFS=$(echo -en ":")
+	for i in $line
+	do
+	echo $i
+	done
+	
+	# Restore seperator as space for further line processing
+	IFS=$(echo -en " ")
+}
 processLine(){
-  line="$@" # get all args
-  echo $line
+	line="$@" # get all args
+	echo $line
+	
+	arg=1
+
+	# parse line "f667e680 1127762832 C Ii:1:001:1 0:2048 2 = 2000"
+	# according to spaces
+
+	OIFS=$IFS
+	IFS=$(echo -en " ")
+	for i in $line
+	do
+
+	case "$arg" in
+	1) #echo $i
+	;;
+	2) #echo $i
+	;;
+	3) #echo $i
+	;;
+	4) #parse4 $i
+	esac
+
+	arg=`expr $arg + 1`
+	done
 }
  
 # Set loop separator to end of line
@@ -15,9 +52,8 @@ exec 3<&0
 exec 0<$FILE
 	# use $line variable to process line in processLine() function
 	# lets take few lines, for initial work
-	for (( i=0; i<$NUM_OF_LINE; i++))
+	while read line
 	do
-	read line
 	# use $line variable to process line in processLine() function
 	processLine $line
 	done
