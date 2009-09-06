@@ -14,9 +14,9 @@ parse_address(){
 	for i in $line
 	do
 
-#	echo $i
 	case "$k" in
 	1) type_dir=$i
+	   ept_type=$i
 		case "$type_dir" in
 		Ci) printf "CtrlIn " ;;
 		Co) printf "CtrlOut " ;;
@@ -27,10 +27,10 @@ parse_address(){
 		Zi) printf "IsoIn " ;;
 		Zo) printf "IsoOut "
 		esac;;
-#		printf "Type and Dir %s " $i ;;
 	2) printf "Bus %s " $i ;;
 	3) printf "Addr %s " $i ;;
-	4) printf "Ept %s\n" $i ;;
+	4) ept_num=$i
+	   printf "Ept %s\n" $i ;;
 	esac
 
 	k=`expr $k + 1`
