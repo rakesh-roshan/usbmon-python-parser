@@ -3,15 +3,37 @@
 FILE=$1
 
 # parse "Ii:1:001:1" based on semicolon
-parse4(){
+parse_address(){
 	line="$@"
-	echo $line
+#	echo $line
+
+	k=1
 
 	OIFS=$IFS
 	IFS=$(echo -en ":")
 	for i in $line
 	do
-	echo $i
+
+#	echo $i
+	case "$k" in
+	1) type_dir=$i
+		case "$type_dir" in
+		Ci) printf "CtrlIn " ;;
+		Co) printf "CtrlOut " ;;
+		Bi) printf "BlkIn " ;;
+		Bo) printf "BlkOut " ;;
+		Ii) printf "IntrIn " ;;
+		Io) printf "IntrOut ";;
+		Zi) printf "IsoIn " ;;
+		Zo) printf "IsoOut "
+		esac;;
+#		printf "Type and Dir %s " $i ;;
+	2) printf "Bus %s " $i ;;
+	3) printf "Addr %s " $i ;;
+	4) printf "Ept %s\n" $i ;;
+	esac
+
+	k=`expr $k + 1`
 	done
 	
 	# Restore seperator as space for further line processing
@@ -19,7 +41,7 @@ parse4(){
 }
 processLine(){
 	line="$@" # get all args
-	echo $line
+#	echo $line
 	
 	arg=1
 
@@ -32,13 +54,15 @@ processLine(){
 	do
 
 	case "$arg" in
-	1) #echo $i
-	;;
-	2) #echo $i
-	;;
-	3) #echo $i
-	;;
-	4) #parse4 $i
+	1) printf "URB %s " $i ;;
+	2) printf "Time %s " $i ;;
+	3) event_type=$i
+		case "$event_type" in
+		C) printf "CBK " ;;
+		S) printf "SUB " ;;
+		E) printf "ERR "
+		esac ;;
+	4) parse_address $i
 	esac
 
 	arg=`expr $arg + 1`
