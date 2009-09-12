@@ -18,19 +18,19 @@ parse_address(){
 	1) type_dir=$i
 	   ept_type=$i
 		case "$type_dir" in
-		Ci) printf "CtrlIn " ;;
-		Co) printf "CtrlOut " ;;
-		Bi) printf "BlkIn " ;;
-		Bo) printf "BlkOut " ;;
-		Ii) printf "IntrIn " ;;
-		Io) printf "IntrOut ";;
-		Zi) printf "IsoIn " ;;
-		Zo) printf "IsoOut "
+		Ci) ept_type_str="CtrlIn " ;;
+		Co) ept_type_str="CtrlOut " ;;
+		Bi) ept_type_str="BlkIn " ;;
+		Bo) ept_type_str="BlkOut " ;;
+		Ii) ept_type_str="IntrIn " ;;
+		Io) ept_type_str="IntrOut ";;
+		Zi) ept_type_str="IsoIn " ;;
+		Zo) ept_type_str="IsoOut "
 		esac;;
-	2) printf "Bus %s " $i ;;
-	3) printf "Addr %s " $i ;;
+	2) bus_str=$i ;;
+	3) addr_str=$i ;;
 	4) ept_num=$i
-	   printf "Ept %s\n" $i ;;
+	   ept_str=$i ;;
 	esac
 
 	k=`expr $k + 1`
@@ -54,19 +54,21 @@ processLine(){
 	do
 
 	case "$arg" in
-	1) printf "URB %s " $i ;;
-	2) printf "Time %s " $i ;;
+	1) urb_str="$i " ;;
+	2) time_str="$i " ;;
 	3) event_type=$i
 		case "$event_type" in
-		C) printf "CBK " ;;
-		S) printf "SUB " ;;
-		E) printf "ERR "
+		C) event_str="CBK " ;;
+		S) event_str="SUB " ;;
+		E) event_str="ERR "
 		esac ;;
 	4) parse_address $i
 	esac
 
 	arg=`expr $arg + 1`
 	done
+
+	printf "URB %s Time %s %s %s BUS %s ADDR %s EPT %s\n" $urb_str $time_str $event_str $ept_type_str $bus_str $addr_str $ept_str
 }
  
 # Set loop separator to end of line
