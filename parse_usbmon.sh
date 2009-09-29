@@ -1,9 +1,26 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+# accept variable arguments
+# addr => device address
+# bus => bus number
+# ept => endpoint number
+# FILE => input file to parse
+
+while getopts 'a:b:e:f:' OPTION
+do
+	case $OPTION in
+	a) addr="$OPTARG"	;;
+	b) bus="$OPTARG"	;;
+	e) ept="$OPTARG"	;;
+	f) FILE="$OPTARG" ;;
+	?) printf "Usage: %s: args\n" $(basename $0) >&2
+		exit 2	;;
+	esac
+done
+	shift $(($OPTIND - 1))
 
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
- 
-FILE=$1
 
 # parse "Ii:1:001:1" based on semicolon
 parse_address(){
