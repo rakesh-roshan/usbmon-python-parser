@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# NOTE - Please use only bash for now to test this script.
+# i.e. run this script only as "bash parse_usbmon.sh"
  
 FILE=$1
 
