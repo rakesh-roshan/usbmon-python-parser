@@ -6,18 +6,24 @@
 # ept => endpoint number
 # FILE => input file to parse
 
-while getopts 'a:b:e:f:' OPTION
+while getopts 'a:b:e:f:v' OPTION
 do
 	case $OPTION in
 	a) addr="$OPTARG"	;;
 	b) bus="$OPTARG"	;;
-	e) ept="$OPTARG"	;;
+	e) ept_f=1
+	   ept="$OPTARG"	;;
 	f) FILE="$OPTARG" ;;
+	v) verbose=1 ;;
 	?) printf "Usage: %s: args\n" $(basename $0) >&2
 		exit 2	;;
 	esac
 done
 	shift $(($OPTIND - 1))
+
+# Global definitions
+TRUE=0
+FALSE=1
 
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
@@ -82,13 +88,27 @@ processLine(){
 		S) event_str="SUB " ;;
 		E) event_str="ERR "
 		esac ;;
-	4) parse_address $i
+	4) parse_address $i ;;
 	esac
 
 	arg=`expr $arg + 1`
 	done
 
-	printf "URB %s Time %s %s %s BUS %s ADDR %s EPT %s\n" $urb_str $time_str $event_str $ept_type_str $bus_str $addr_str $ept_str
+	if [ $verbose ]
+	then
+		printf "URB %s Time %s" $urb_str $time_str
+	fi
+
+	if [ $ept_f ]
+	then
+		test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
+		if test $? -eq $TRUE
+		then
+			printf "%s %s BUS %s ADDR %s EPT %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+		fi
+	else
+			printf "%s %s BUS %s ADDR %s EPT %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+	fi
 }
  
 # Set loop separator to end of line
