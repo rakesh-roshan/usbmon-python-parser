@@ -30,14 +30,14 @@ FALSE=1
 
 # parse "Ii:1:001:1" based on semicolon
 parse_address(){
-	line="$@"
-#	echo $line
+	addr_line="$@"
+#	echo $addr_line
 
 	k=1
 
 	OIFS=$IFS
 	IFS=$(echo -en ":")
-	for i in $line
+	for i in $addr_line
 	do
 
 	case "$k" in
