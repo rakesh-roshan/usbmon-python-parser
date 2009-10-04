@@ -28,6 +28,32 @@ FALSE=1
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
 
+parse_usb_requests(){
+	req_line="$@" # get all args
+	echo $req_line
+
+	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
+	if test $? -eq $TRUE
+	then
+		l=1
+		OIFS=$IFS
+		IFS=$(echo -en " ")
+		for i in $line
+		do
+			case "$l" in
+			5) echo "$i" ;;
+			6) echo "$i" ;;
+			7) echo "$i" ;;
+			8) echo "$i" ;;
+			9) echo "$i" ;;
+			10) echo "$i" ;;
+			11) echo "$i" ;;
+			esac
+		l=`expr $l + 1`
+		done
+	fi
+}
+
 # parse "Ii:1:001:1" based on semicolon
 parse_address(){
 	addr_line="$@"
@@ -109,6 +135,8 @@ processLine(){
 	else
 			printf "%s %s BUS %s ADDR %s EPT %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
 	fi
+
+	parse_usb_requests $line
 }
  
 # Set loop separator to end of line
