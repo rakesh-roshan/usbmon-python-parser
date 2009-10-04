@@ -60,8 +60,40 @@ parse_usb_requests(){
 				00) usb_ctrlrequest_str[0]="StdOutDev" ;;
 				*)  usb_ctrlrequest_str[0]="Invalid" #TODO - handling of class request
 				esac ;;
-			7) usb_ctrlrequest[1]=$i ;;
-			8) usb_ctrlrequest[2]=$i ;;
+			7) usb_ctrlrequest[1]=$i
+				case $i in
+				00) usb_ctrlrequest_str[1]="GetStatus";;
+				01) usb_ctrlrequest_str[1]="ClrFeature";;
+				02) usb_ctrlrequest_str[1]="Reserved";;
+				03) usb_ctrlrequest_str[1]="SetFeature";;
+				04) usb_ctrlrequest_str[1]="Reserved";;
+				05) usb_ctrlrequest_str[1]="SetAddr";;
+				06) usb_ctrlrequest_str[1]="GetDesc";;
+				07) usb_ctrlrequest_str[1]="SetDesc";;
+				08) usb_ctrlrequest_str[1]="GetConf";;
+				09) usb_ctrlrequest_str[1]="SetConf";;
+				10) usb_ctrlrequest_str[1]="GetIntf";;
+				11) usb_ctrlrequest_str[1]="SetIntf";;
+				12) usb_ctrlrequest_str[1]="SyncFrame";;
+				esac ;;
+			8) usb_ctrlrequest[2]=$i
+				test \( ${usb_ctrlrequest[1]} = "06" \) -a  \( -n "${usb_ctrlrequest[1]}" \)
+				if test $? -eq $TRUE
+				then
+					desc_type=$(($((0x$i & 0xFF00)) >> 8 ))
+					desc_idx=$((0x$i & 0x00FF))
+					echo $desc_type $desc_idx
+					case $desc_type in
+					1) usb_ctrlrequest_str[2]="Dev";;
+					2) usb_ctrlrequest_str[2]="Conf";;
+					3) usb_ctrlrequest_str[2]="Str";;
+					4) usb_ctrlrequest_str[2]="Intf";;
+					5) usb_ctrlrequest_str[2]="Ept";;
+					6) usb_ctrlrequest_str[2]="DevQual";;
+					7) usb_ctrlrequest_str[2]="OtherSpeed";;
+					8) usb_ctrlrequest_str[2]="IntfPowr";;
+					esac
+				fi ;;
 			9) usb_ctrlrequest[3]=$i ;;
 			10) ;;
 			11) usb_ctrlrequest[4]=$i ;; #consider dacimal wLength
@@ -69,7 +101,7 @@ parse_usb_requests(){
 		l=`expr $l + 1`
 		done
 
-	printf "%s " ${usb_ctrlrequest_str[0]}
+	printf "%s %s %s \n" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]}
 	printf "bReqType=%s bReq=%s wVal=%s wIdx=%s wLen=%s\n" ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]} ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
 
 #		for member in ${usb_ctrlrequest[*]}; do echo $member;done
