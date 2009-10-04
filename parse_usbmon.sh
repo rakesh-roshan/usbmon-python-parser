@@ -75,6 +75,7 @@ parse_usb_requests(){
 				10) usb_ctrlrequest_str[1]="GetIntf";;
 				11) usb_ctrlrequest_str[1]="SetIntf";;
 				12) usb_ctrlrequest_str[1]="SyncFrame";;
+				*) usb_ctrlrequest_str[1]="Invalid";;
 				esac ;;
 			8) usb_ctrlrequest[2]=$i
 				test \( ${usb_ctrlrequest[1]} = "06" \) -a  \( -n "${usb_ctrlrequest[1]}" \)
@@ -82,7 +83,6 @@ parse_usb_requests(){
 				then
 					desc_type=$(($((0x$i & 0xFF00)) >> 8 ))
 					desc_idx=$((0x$i & 0x00FF))
-					echo $desc_type $desc_idx
 					case $desc_type in
 					1) usb_ctrlrequest_str[2]="Dev";;
 					2) usb_ctrlrequest_str[2]="Conf";;
@@ -92,17 +92,27 @@ parse_usb_requests(){
 					6) usb_ctrlrequest_str[2]="DevQual";;
 					7) usb_ctrlrequest_str[2]="OtherSpeed";;
 					8) usb_ctrlrequest_str[2]="IntfPowr";;
+					*) usb_ctrlrequest_str[2]="Invalid";;
 					esac
 				fi ;;
-			9) usb_ctrlrequest[3]=$i ;;
+			9) usb_ctrlrequest[3]=$i
+				case ${usb_ctrlrequest[1]} in
+				06) desc_type=$(($((0x${usb_ctrlrequest[2]} & 0xFF00)) >> 8 ))
+					case $desc_type in
+					3)	case $i in
+						0409) usb_ctrlrequest_str[3]="Eng-US" ;;
+						*) usb_ctrlrequest_str[3]="0000"
+						esac ;;
+					esac ;;
+				esac ;;
 			10) ;;
 			11) usb_ctrlrequest[4]=$i ;; #consider dacimal wLength
 			esac
 		l=`expr $l + 1`
 		done
 
-	printf "%s %s %s \n" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]}
-	printf "bReqType=%s bReq=%s wVal=%s wIdx=%s wLen=%s\n" ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]} ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
+	printf "\n%s %s %s %s \n" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]} ${usb_ctrlrequest_str[3]}
+	printf "\nbReqType=%s bReq=%s wVal=%s wIdx=%s wLen=%s\n" ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]} ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
 
 #		for member in ${usb_ctrlrequest[*]}; do echo $member;done
 	fi
@@ -176,20 +186,18 @@ processLine(){
 
 	if [ $verbose ]
 	then
-		printf "Urb %s Time %s" $urb_str $time_str
-	fi
-
-	if [ $ept_f ]
-	then
-		test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
-		if test $? -eq $TRUE
+		printf "Urb %s Time %s\n" $urb_str $time_str
+		if [ $ept_f ]
 		then
-			printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+			test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
+			if test $? -eq $TRUE
+			then
+				printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+			else
+				printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+			fi
 		fi
-	else
-			printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
 	fi
-
 	parse_usb_requests $line
 }
  
