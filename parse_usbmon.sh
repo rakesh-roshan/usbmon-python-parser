@@ -6,6 +6,18 @@
 # ept => endpoint number
 # FILE => input file to parse
 
+#	struct usb_ctrlrequest {
+#		 __u8 bRequestType;
+#		 __u8 bRequest;
+#		__le16 wValue;
+#		__le16 wIndex;
+#		__le16 wLength;
+#	} __attribute__ ((packed));
+
+usb_ctrlrequest=()
+usb_ctrlrequest_str=()
+
+
 while getopts 'a:b:e:f:v' OPTION
 do
 	case $OPTION in
@@ -15,7 +27,7 @@ do
 	   ept="$OPTARG"	;;
 	f) FILE="$OPTARG" ;;
 	v) verbose=1 ;;
-	?) printf "Usage: %s: args\n" $(basename $0) >&2
+	*) printf "Usage: %s: args\n" $(basename $0) >&2
 		exit 2	;;
 	esac
 done
@@ -30,7 +42,7 @@ FALSE=1
 
 parse_usb_requests(){
 	req_line="$@" # get all args
-	echo $req_line
+#	echo $req_line
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -41,16 +53,26 @@ parse_usb_requests(){
 		for i in $line
 		do
 			case "$l" in
-			5) echo "$i" ;;
-			6) echo "$i" ;;
-			7) echo "$i" ;;
-			8) echo "$i" ;;
-			9) echo "$i" ;;
-			10) echo "$i" ;;
-			11) echo "$i" ;;
+			5) ;; #TODO
+			6) usb_ctrlrequest[0]=$i
+				case $i in #TODO - bitwise parsing
+				80) usb_ctrlrequest_str[0]="StdInDev" ;;
+				00) usb_ctrlrequest_str[0]="StdOutDev" ;;
+				*)  usb_ctrlrequest_str[0]="Invalid" #TODO - handling of class request
+				esac ;;
+			7) usb_ctrlrequest[1]=$i ;;
+			8) usb_ctrlrequest[2]=$i ;;
+			9) usb_ctrlrequest[3]=$i ;;
+			10) ;;
+			11) usb_ctrlrequest[4]=$i ;; #consider dacimal wLength
 			esac
 		l=`expr $l + 1`
 		done
+
+	printf "%s " ${usb_ctrlrequest_str[0]}
+	printf "bReqType=%s bReq=%s wVal=%s wIdx=%s wLen=%s\n" ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]} ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
+
+#		for member in ${usb_ctrlrequest[*]}; do echo $member;done
 	fi
 }
 
@@ -122,7 +144,7 @@ processLine(){
 
 	if [ $verbose ]
 	then
-		printf "URB %s Time %s" $urb_str $time_str
+		printf "Urb %s Time %s" $urb_str $time_str
 	fi
 
 	if [ $ept_f ]
@@ -130,10 +152,10 @@ processLine(){
 		test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
 		if test $? -eq $TRUE
 		then
-			printf "%s %s BUS %s ADDR %s EPT %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+			printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
 		fi
 	else
-			printf "%s %s BUS %s ADDR %s EPT %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+			printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
 	fi
 
 	parse_usb_requests $line
