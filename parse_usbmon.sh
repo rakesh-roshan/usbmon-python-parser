@@ -125,13 +125,13 @@ parse_usb_requests(){
 						*) usb_ctrlrequest_str[3]="0000"
 						esac ;;
 					esac ;;
-				esac ;;
 				07) ;;
 				08) ;;
 				09) ;;
 				10) ;;
 				11) ;;
 				12) ;;
+				esac ;;
 			10) ;;
 			11) usb_ctrlrequest[4]=$i ;; #consider dacimal wLength
 			esac
