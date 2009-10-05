@@ -78,10 +78,19 @@ parse_usb_requests(){
 				*) usb_ctrlrequest_str[1]="Invalid";;
 				esac ;;
 			8) usb_ctrlrequest[2]=$i
-				test \( ${usb_ctrlrequest[1]} = "06" \) -a  \( -n "${usb_ctrlrequest[1]}" \)
-				if test $? -eq $TRUE
-				then
-					desc_type=$(($((0x$i & 0xFF00)) >> 8 ))
+				case ${usb_ctrlrequest[1]} in
+				00) ;;
+				01) case $i in
+				    0) ;; # Feature Selector - ENDPOINT_HALT
+				    1) ;; # DEVICE_REMOTE_WAKEUP
+				    2) ;; # TEST_MODE
+				    *) ;; # INVALID
+				    esac ;;
+				02) ;;
+				03) ;;
+				04) ;;
+				05) usb_ctrlrequest_str[2]="addr=$((0x${usb_ctrlrequest[2]} & 0x007F))" ;;
+				06)	desc_type=$(($((0x$i & 0xFF00)) >> 8 ))
 					desc_idx=$((0x$i & 0x00FF))
 					case $desc_type in
 					1) usb_ctrlrequest_str[2]="Dev";;
@@ -93,10 +102,22 @@ parse_usb_requests(){
 					7) usb_ctrlrequest_str[2]="OtherSpeed";;
 					8) usb_ctrlrequest_str[2]="IntfPowr";;
 					*) usb_ctrlrequest_str[2]="Invalid";;
-					esac
-				fi ;;
+					esac ;;
+				07) ;;
+				08) ;;
+				09) ;;
+				10) ;;
+				11) ;;
+				12) ;;
+				esac ;;
 			9) usb_ctrlrequest[3]=$i
 				case ${usb_ctrlrequest[1]} in
+				00) ;;
+				01) ;;
+				02) ;;
+				03) ;;
+				04) ;;
+				05) ;;
 				06) desc_type=$(($((0x${usb_ctrlrequest[2]} & 0xFF00)) >> 8 ))
 					case $desc_type in
 					3)	case $i in
@@ -105,13 +126,19 @@ parse_usb_requests(){
 						esac ;;
 					esac ;;
 				esac ;;
+				07) ;;
+				08) ;;
+				09) ;;
+				10) ;;
+				11) ;;
+				12) ;;
 			10) ;;
 			11) usb_ctrlrequest[4]=$i ;; #consider dacimal wLength
 			esac
 		l=`expr $l + 1`
 		done
 
-	printf "\n%s %s %s %s \n" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]} ${usb_ctrlrequest_str[3]}
+	printf "\n%s %s %s %s" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]} ${usb_ctrlrequest_str[3]}
 	printf "\nbReqType=%s bReq=%s wVal=%s wIdx=%s wLen=%s\n" ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]} ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
 
 #		for member in ${usb_ctrlrequest[*]}; do echo $member;done
