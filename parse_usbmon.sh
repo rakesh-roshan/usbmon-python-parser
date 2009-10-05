@@ -54,12 +54,41 @@ parse_usb_requests(){
 		do
 			case "$l" in
 			5) ;; #TODO
+
+			# D7:	Data Transfer Direction
+			#	0 - Host-to-Device [Out]
+			#	1 - Device-to-Host [In]
+			# D6-D5	Type => 0 - Standard 1 - Class 2 - Vendor 3 - Reserved
+			# D4...D0 Receipent => 0 - Device 1 - Interface
+			#			2 - Endpoint 3 - Other 4...31 - Reserved
 			6) usb_ctrlrequest[0]=$i
-				case $i in #TODO - bitwise parsing
-				80) usb_ctrlrequest_str[0]="StdInDev" ;;
-				00) usb_ctrlrequest_str[0]="StdOutDev" ;;
-				*)  usb_ctrlrequest_str[0]="Invalid" #TODO - handling of class request
-				esac ;;
+				Direction=$(($((0x$i & 0x80)) >> 7 ))
+				Type=$(($((0x$i & 0x60)) >> 5 ))
+				Recep=$((0x$i & 0x1F))
+				case "$Direction" in
+				0) Direction_str="Out";;
+				1) Direction_str="In";;
+				*) Direction_str="Invalid";;
+				esac
+
+				case "$Type" in
+				0) Type_str="Std";;
+				1) Type_str="Class";;
+				2) Type_str="Vend";;
+				3) Type_str="Reserved";;
+				*) Type_str="Invalid";;
+				esac
+
+				case "$Recep" in
+				0) Recep_str="Dev";;
+				1) Recep_str="Interf";;
+				2) Recep_str="Ept";;
+				3) Recep_str="Other";;
+				*) Recep_str="Reserved";;
+				esac
+
+				usb_ctrlrequest_str[0]="$Type_str$Direction_str$Recep_str" ;;
+
 			7) usb_ctrlrequest[1]=$i
 				case $i in
 				00) usb_ctrlrequest_str[1]="GetStatus";;
