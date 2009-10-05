@@ -134,7 +134,8 @@ parse_usb_requests(){
 					esac ;;
 				07) ;;
 				08) ;;
-				09) ;;
+				09) conf_num=$((0x$i & 0x00FF))
+				    usb_ctrlrequest_str[2]="config-$conf_num" ;;
 				10) ;;
 				11) ;;
 				12) ;;
@@ -146,32 +147,33 @@ parse_usb_requests(){
 				02) ;;
 				03) ;;
 				04) ;;
-				05) ;;
+				05) usb_ctrlrequest_str[3]="Idx-0" ;;
 				06) desc_type=$(($((0x${usb_ctrlrequest[2]} & 0xFF00)) >> 8 ))
 					case $desc_type in
 					3)	case $i in
 						0409) usb_ctrlrequest_str[3]="Eng-US" ;;
-						*) usb_ctrlrequest_str[3]="0000"
 						esac ;;
+					*) usb_ctrlrequest_str[3]="Idx-0"
 					esac ;;
 				07) ;;
 				08) ;;
-				09) ;;
+				09) usb_ctrlrequest_str[3]="Idx-0";;
 				10) ;;
 				11) ;;
 				12) ;;
 				esac ;;
 			10) ;;
-			11) usb_ctrlrequest[4]=$i ;; #consider dacimal wLength
+			11) usb_ctrlrequest[4]=$i #consider dacimal wLength
+			    usb_ctrlrequest_str[4]="wLen-$i" ;;
 			esac
 		l=`expr $l + 1`
 		done
 
-	printf "\n%s %s %s %s" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]} ${usb_ctrlrequest_str[3]}
 	printf "\nbReqType=%s bReq=%s wVal=%s wIdx=%s wLen=%s\n" ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]} ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
+	printf "%s %s %s %s %s\n" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]} ${usb_ctrlrequest_str[3]} ${usb_ctrlrequest_str[4]}
 
 #		for member in ${usb_ctrlrequest[*]}; do echo $member;done
-	fi
+	fi #endof test \( $event_str = "SUB" \)
 }
 
 # parse "Ii:1:001:1" based on semicolon
