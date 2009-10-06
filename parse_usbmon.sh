@@ -17,7 +17,6 @@
 usb_ctrlrequest=()
 usb_ctrlrequest_str=()
 
-
 while getopts 'a:b:e:f:v' OPTION
 do
 	case $OPTION in
@@ -36,13 +35,16 @@ done
 # Global definitions
 TRUE=0
 FALSE=1
+no=0
+yes=1
 
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
 
 parse_usb_requests(){
-	req_line="$@" # get all args
-#	echo $req_line
+	local req_line="$@" # get all args
+	local data_str=()
+	local datalen data_available=0
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -50,7 +52,7 @@ parse_usb_requests(){
 		l=1
 		OIFS=$IFS
 		IFS=$(echo -en " ")
-		for i in $line
+		for i in $req_line
 		do
 			case "$l" in
 			5) ;; #TODO
@@ -174,6 +176,49 @@ parse_usb_requests(){
 
 #		for member in ${usb_ctrlrequest[*]}; do echo $member;done
 	fi #endof test \( $event_str = "SUB" \)
+
+	test \( $event_str = "CBK" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
+	if test $? -eq $TRUE
+	then
+		m=1 p=0
+		OIFS=$IFS
+		IFS=$(echo -en " ")
+		for i in $req_line
+		do
+			test \( "$i" = "0" \) -a \( $m = 5 \)
+			if test $? -eq $TRUE
+			then
+				arg5=0 #i think I should exit if this is not 0 with error and skip any parsing
+			fi
+
+			test \( "$i" = "0" \) -a \( $m = 6 \)
+			if test $? -eq $TRUE
+			then
+				data_available=$no
+			fi
+
+			test \( "$i" != "0" \) -a \( $m = 6 \)
+			if test $? -eq $TRUE
+			then
+				data_available=$yes
+				datalen=$i
+			fi
+
+			if [ "$data_available" == "$yes" ]
+			then
+				case $m in
+				6) ;; 7) ;; #neglect first 6 and 7th words
+				*) data_str[$p]=$i #printf "%s " $i
+				esac
+			fi
+
+		p=`expr $p + 1`
+		m=`expr $m + 1`
+		done
+		printf "received data with len=%s is " $datalen
+		for member in ${data_str[*]}; do printf "%s " $member;done
+	printf "\n\n"
+	fi
 }
 
 # parse "Ii:1:001:1" based on semicolon
