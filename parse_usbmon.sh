@@ -191,17 +191,15 @@ parse_usb_requests(){
 				arg5=0 #i think I should exit if this is not 0 with error and skip any parsing
 			fi
 
-			test \( "$i" = "0" \) -a \( $m = 6 \)
-			if test $? -eq $TRUE
+			if [ "$m" == "6" ]
 			then
-				data_available=$no
-			fi
-
-			test \( "$i" != "0" \) -a \( $m = 6 \)
-			if test $? -eq $TRUE
-			then
-				data_available=$yes
-				datalen=$i
+				if [ "$i" == "0" ]
+				then
+					data_available=$no
+				else
+					datalen=$i
+					data_available=$yes
+				fi
 			fi
 
 			if [ "$data_available" == "$yes" ]
