@@ -17,6 +17,9 @@
 usb_ctrlrequest=()
 usb_ctrlrequest_str=()
 
+# SYNCF, SI,GI,SC,GC, SD,GD,SA,R, SF,R,CF,GS - Table9.4 Ch9
+std_req_flag=0x0000
+
 while getopts 'a:b:e:f:v' OPTION
 do
 	case $OPTION in
@@ -44,7 +47,8 @@ yes=1
 parse_usb_requests(){
 	local req_line="$@" # get all args
 	local data_str=()
-	local datalen data_available=0
+	local datalen=0 data_available=0
+	local Direction=0 Type=0 Recep=0
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -213,10 +217,38 @@ parse_usb_requests(){
 		p=`expr $p + 1`
 		m=`expr $m + 1`
 		done
+
+		if [ "$data_available" == "$yes" ]
+		then
+			Type=$(($((0x${usb_ctrlrequest[0]} & 0x60)) >> 5 ))
+			case $Type in
+			0) #now we have to parse received data as per requests
+				case ${usb_ctrlrequest[1]} in
+				00) ;;
+				01) ;;
+				02) ;;
+				03) ;;
+				04) ;;
+				05) ;;
+				06) ;;
+				07) ;;
+				08) ;;
+				09) ;;
+				10) ;;
+				11) ;;
+				12) ;;
+				esac ;;
+			1) echo "this is a class request..";; #class request
+			2) ;;
+			3) ;;
+			*)
+			esac
+		fi
+
 		printf "received data with len=%s is " $datalen
 		for member in ${data_str[*]}; do printf "%s " $member;done
 	printf "\n\n"
-	fi
+	fi #endof test \( $event_str = "CBK" \)
 }
 
 # parse "Ii:1:001:1" based on semicolon
