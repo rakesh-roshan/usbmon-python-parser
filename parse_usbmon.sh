@@ -230,7 +230,33 @@ parse_usb_requests(){
 				03) ;;
 				04) ;;
 				05) ;;
-				06) ;;
+				06)	desc_type=$(($((0x${usb_ctrlrequest[2]} & 0xFF00)) >> 8 ))
+					case $desc_type in
+					1) #device descriptor with wLen 18 => 4*4 + 1*2 = 5 cases
+						r=1
+							printf "0th member is  %s " ${data_str[0]}
+						for member in ${data_str[*]}
+						do
+							case $r in
+							1) printf "$r. %s " $member ;;
+							2) printf "$r. %s " $member;;
+							3) printf "$r. %s " $member;;
+							4) printf "$r. %s " $member;;
+							5) printf "$r. %s " $member;;
+							esac
+							r=`expr $r + 1`
+						done
+						;;
+					2) ;;
+					3) ;;
+					4) ;;
+					5) ;;
+					6) ;;
+					7) ;;
+					8) ;;
+					*) ;;
+					esac
+					;;
 				07) ;;
 				08) ;;
 				09) ;;
