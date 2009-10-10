@@ -40,6 +40,7 @@ TRUE=0
 FALSE=1
 no=0
 yes=1
+INVALID=-1
 
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
@@ -47,7 +48,7 @@ yes=1
 parse_usb_requests(){
 	local req_line="$@" # get all args
 	local data_str=()
-	local datalen=0 data_available=0
+	local datalen=0 data_available=$INVALID
 	local Direction=0 Type=0 Recep=0
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
@@ -206,16 +207,18 @@ parse_usb_requests(){
 				fi
 			fi
 
-			if [ "$data_available" == "$yes" ]
+			if [ "$data_available" == "$no" ]
 			then
-				case $m in
-				6) ;; 7) ;; #neglect first 6 and 7th words
-				*) data_str[$p]=$i #printf "%s " $i
-				esac
+				return 0
 			fi
 
+			if [ "$m" -le 7 ] #ignore first 7 words
+			then
+				m=`expr $m + 1`
+				continue
+			fi
+				data_str[$p]=$i #save data
 		p=`expr $p + 1`
-		m=`expr $m + 1`
 		done
 
 		if [ "$data_available" == "$yes" ]
