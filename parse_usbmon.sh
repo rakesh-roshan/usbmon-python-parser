@@ -17,6 +17,27 @@
 usb_ctrlrequest=()
 usb_ctrlrequest_str=()
 
+#	/* USB_DT_DEVICE: Device descriptor */
+#	struct usb_device_descriptor {
+#		__u8  bLength;
+#		__u8  bDescriptorType;
+#		__le16 bcdUSB;
+#		__u8  bDeviceClass;
+#		__u8  bDeviceSubClass;
+#		__u8  bDeviceProtocol;
+#		__u8  bMaxPacketSize0;
+#		__le16 idVendor;
+#		__le16 idProduct;
+#		__le16 bcdDevice;
+#		__u8  iManufacturer;
+#		__u8  iProduct;
+#		__u8  iSerialNumber;
+#		__u8  bNumConfigurations;
+#} __attribute__ ((packed));
+
+usb_device_descriptor=()
+USB_DT_DEVICE_SIZE=18
+
 # SYNCF, SI,GI,SC,GC, SD,GD,SA,R, SF,R,CF,GS - Table9.4 Ch9
 std_req_flag=0x0000
 
@@ -236,12 +257,20 @@ parse_usb_requests(){
 				06)	desc_type=$(($((0x${usb_ctrlrequest[2]} & 0xFF00)) >> 8 ))
 					case $desc_type in
 					1) #device descriptor with wLen 18 => 4*4 + 1*2 = 5 cases
+					   # 12010002 00000040 b8228d60 01000302 0501
 						r=1
-							printf "0th member is  %s " ${data_str[0]}
 						for member in ${data_str[*]}
 						do
 							case $r in
-							1) printf "$r. %s " $member ;;
+							1) usb_device_descriptor[0]=$(($((0x${data_str[0]} & 0xFF000000)) >> 24 ))
+							   printf "bLen %s " ${usb_device_descriptor[0]}
+							   usb_device_descriptor[1]=$(($((0x${data_str[0]} & 0x00FF0000)) >> 16 ))
+							   printf "bDes %s " ${usb_device_descriptor[1]}
+							   msb=$((0x${data_str[0]} & 0x000000FF))
+							   lsb=$(($((0x${data_str[0]} & 0x0000FF00)) >> 8 ))
+							   usb_device_descriptor[2]="$msb$lsb"
+							   printf "bcdUSB 0%s0\n" ${usb_device_descriptor[2]}
+								;;
 							2) printf "$r. %s " $member;;
 							3) printf "$r. %s " $member;;
 							4) printf "$r. %s " $member;;
