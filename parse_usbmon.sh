@@ -38,6 +38,20 @@ usb_ctrlrequest_str=()
 usb_device_descriptor=()
 USB_DT_DEVICE_SIZE=18
 
+#	struct usb_config_descriptor {
+#		__u8  bLength;
+#		__u8  bDescriptorType;
+#		__le16 wTotalLength;
+#		__u8  bNumInterfaces;
+#		__u8  bConfigurationValue;
+#		__u8  iConfiguration;
+#		__u8  bmAttributes;
+#		__u8  bMaxPower;
+#		} __attribute__ ((packed));
+
+usb_config_descriptor=()
+USB_DT_CONFIG_SIZE=9
+
 # SYNCF, SI,GI,SC,GC, SD,GD,SA,R, SF,R,CF,GS - Table9.4 Ch9
 std_req_flag=0x0000
 
@@ -72,6 +86,8 @@ parse_usb_requests(){
 	local datalen=0 data_available=$INVALID
 	local Direction=0 Type=0 Recep=0
 	local msb=0 lsb=0
+	local equal_pos=0 received_data=0 data_start=0
+	local datastr=0 wtotallen=0
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -254,6 +270,10 @@ parse_usb_requests(){
 
 		if [ "$data_available" == "$yes" ]
 		then
+			equal_pos=`expr index "$req_line" "="` # find out position of "="
+			data_start=`expr $equal_pos + 1` # skip space after "="
+			received_data=${req_line:$data_start} # save received data as a string
+
 			Type=$(($((0x${usb_ctrlrequest[0]} & 0x60)) >> 5 ))
 			case $Type in
 			0) #now we have to parse received data as per requests
@@ -326,7 +346,42 @@ parse_usb_requests(){
 							r=`expr $r + 1`
 						done
 						;;
-					2) ;;
+					2) for i in 1 2 3
+					   do
+						case $i in
+						1) printf "\nConfig Desc =>"
+						   usb_config_descriptor[0]=$(($((0x${data_str[0]} & 0xFF000000)) >> 24 ))
+						   printf " bLen %s " ${usb_config_descriptor[0]}
+
+						   usb_config_descriptor[1]=$(($((0x${data_str[0]} & 0x00FF0000)) >> 16 ))
+						   printf "bDescType %s " ${usb_config_descriptor[1]}
+
+						   datastr="${data_str[0]}"
+						   wtotallen="${datastr:4:4}"
+						   msb=${wtotallen:0:2}
+						   lsb=${wtotallen:2:2}
+						   usb_config_descriptor[2]=$((0x$lsb$msb))
+						   printf "wTotalLen %s " ${usb_config_descriptor[2]}
+							;;
+						2) usb_config_descriptor[3]=$(($((0x${data_str[1]} & 0xFF000000)) >> 24 ))
+						   printf "bNumInterfaces %s " ${usb_config_descriptor[3]}
+
+						   usb_config_descriptor[4]=$(($((0x${data_str[1]} & 0x00FF0000)) >> 16 ))
+						   printf "bConfVal %s " ${usb_config_descriptor[4]}
+
+						   usb_config_descriptor[5]=$(($((0x${data_str[1]} & 0x0000FF00)) >> 8 ))
+						   printf "iConf %s " ${usb_config_descriptor[5]}
+
+						   usb_config_descriptor[6]=$((0x${data_str[1]} & 0x000000FF))
+						   printf "bmAttr %s " ${usb_config_descriptor[6]}
+							;;
+						3) datastr="${data_str[2]}"
+						   usb_config_descriptor[7]=$((0x${datastr:0:2})) #store in decimal
+						   printf "bMaxPower %s " ${usb_config_descriptor[7]}
+							;;
+						esac
+					   done
+						;;
 					3) ;;
 					4) ;;
 					5) ;;
