@@ -198,10 +198,18 @@ parse_usb_requests(){
 		l=`expr $l + 1`
 		done
 
-	printf "\nbReqType=%s bReq=%s wVal=%s wIdx=%s wLen=%s\n" ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]} ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
-	printf "%s %s %s %s %s\n" ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]} ${usb_ctrlrequest_str[3]} ${usb_ctrlrequest_str[4]}
+	printf "\nbReqType=%s " ${usb_ctrlrequest[0]}
+	printf "bReq=%s " ${usb_ctrlrequest[1]}
+	printf "wVal=%s " ${usb_ctrlrequest[2]}
+	printf "wIdx=%s " ${usb_ctrlrequest[3]}
+	printf "wLen=%s" ${usb_ctrlrequest[4]}
 
-#		for member in ${usb_ctrlrequest[*]}; do echo $member;done
+	printf "\n%s " ${usb_ctrlrequest_str[0]}
+	printf "%s " ${usb_ctrlrequest_str[1]}
+	printf "%s " ${usb_ctrlrequest_str[2]}
+	printf "%s " ${usb_ctrlrequest_str[3]}
+	printf "%s" ${usb_ctrlrequest_str[4]}
+
 	fi #endof test \( $event_str = "SUB" \)
 
 	test \( $event_str = "CBK" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
@@ -231,6 +239,7 @@ parse_usb_requests(){
 
 			if [ "$data_available" == "$no" ]
 			then
+				printf "\n" # print \n for proper formatting of printing
 				return 0
 			fi
 
@@ -264,7 +273,7 @@ parse_usb_requests(){
 						do
 							case $r in
 							1) usb_device_descriptor[0]=$(($((0x${data_str[0]} & 0xFF000000)) >> 24 ))
-							   printf "bLen %s " ${usb_device_descriptor[0]}
+							   printf "\nbLen %s " ${usb_device_descriptor[0]}
 
 							   usb_device_descriptor[1]=$(($((0x${data_str[0]} & 0x00FF0000)) >> 16 ))
 							   printf "bDes %s " ${usb_device_descriptor[1]}
@@ -311,7 +320,7 @@ parse_usb_requests(){
 							   printf "iSerialNum %s " ${usb_device_descriptor[12]}
 
 							   usb_device_descriptor[13]=$((0x${data_str[4]} & 0x0000FF))
-							   printf "bNumConf %s\n" ${usb_device_descriptor[13]}
+							   printf "bNumConf %s" ${usb_device_descriptor[13]}
 								;;
 							esac
 							r=`expr $r + 1`
@@ -334,16 +343,16 @@ parse_usb_requests(){
 				11) ;;
 				12) ;;
 				esac ;;
-			1) echo "this is a class request..";; #class request
+			1) ;; #class request
 			2) ;;
 			3) ;;
 			*)
 			esac
 		fi
 
-		printf "received data with len=%s is " $datalen
+		printf "\nreceived data with len=%s is " $datalen
 		for member in ${data_str[*]}; do printf "%s " $member;done
-	printf "\n\n"
+	printf "\n"
 	fi #endof test \( $event_str = "CBK" \)
 }
 
@@ -415,19 +424,32 @@ processLine(){
 
 	if [ $verbose ]
 	then
-		printf "Urb %s Time %s\n" $urb_str $time_str
 		if [ $ept_f ]
 		then
 			test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
 			if test $? -eq $TRUE
 			then
-				printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
-			else
-				printf "%s %s Bus %s Addr %s Ept %s\n" $event_str $ept_type_str $bus_str $addr_str $ept_str
+				printf "\nUrb %s Time %s " $urb_str $time_str
+				printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
+				parse_usb_requests $line #decide parsing of line based on endpoint
 			fi
+		else
+			printf "\nUrb %s Time %s " $urb_str $time_str
+			printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
+			parse_usb_requests $line
+		fi
+	else
+		if [ $ept_f ]
+		then
+			test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
+			if test $? -eq $TRUE
+			then
+				parse_usb_requests $line #decide parsing of line based on endpoint
+			fi
+		else
+			parse_usb_requests $line
 		fi
 	fi
-	parse_usb_requests $line
 }
  
 # Set loop separator to end of line
