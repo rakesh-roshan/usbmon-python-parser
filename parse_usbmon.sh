@@ -71,6 +71,7 @@ parse_usb_requests(){
 	local data_str=()
 	local datalen=0 data_available=$INVALID
 	local Direction=0 Type=0 Recep=0
+	local msb=0 lsb=0
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -264,17 +265,54 @@ parse_usb_requests(){
 							case $r in
 							1) usb_device_descriptor[0]=$(($((0x${data_str[0]} & 0xFF000000)) >> 24 ))
 							   printf "bLen %s " ${usb_device_descriptor[0]}
+
 							   usb_device_descriptor[1]=$(($((0x${data_str[0]} & 0x00FF0000)) >> 16 ))
 							   printf "bDes %s " ${usb_device_descriptor[1]}
+
 							   msb=$((0x${data_str[0]} & 0x000000FF))
 							   lsb=$(($((0x${data_str[0]} & 0x0000FF00)) >> 8 ))
 							   usb_device_descriptor[2]="$msb$lsb"
-							   printf "bcdUSB 0%s0\n" ${usb_device_descriptor[2]}
+							   printf "bcdUSB %.2d%.2d " $msb $lsb
 								;;
-							2) printf "$r. %s " $member;;
-							3) printf "$r. %s " $member;;
-							4) printf "$r. %s " $member;;
-							5) printf "$r. %s " $member;;
+							2) usb_device_descriptor[3]=$(($((0x${data_str[1]} & 0xFF000000)) >> 24 ))
+							   printf "bDevClass %s " ${usb_device_descriptor[3]}
+
+							   usb_device_descriptor[4]=$(($((0x${data_str[1]} & 0x00FF0000)) >> 16 ))
+							   printf "bDevSubClass %s " ${usb_device_descriptor[4]}
+
+							   usb_device_descriptor[5]=$(($((0x${data_str[1]} & 0x0000FF00)) >> 8 ))
+							   printf "bDevProto %s " ${usb_device_descriptor[5]}
+
+							   usb_device_descriptor[6]=$((0x${data_str[1]} & 0x000000FF))
+							   printf "bMaxPkt0 %s " ${usb_device_descriptor[6]}
+								;;
+							3) msb=$(($((0x${data_str[2]} & 0xFF000000)) >> 24 ))
+							   lsb=$(($((0x${data_str[2]} & 0x00FF0000)) >> 16 ))
+							   usb_device_descriptor[7]="$msb$lsb" #stored as a concatanated decimal
+							   printf "idVendor %.2x%.2x " $lsb $msb
+
+							   msb=$(($((0x${data_str[2]} & 0x0000FF00)) >> 8 ))
+							   lsb=$((0x${data_str[2]} & 0x0000FF))
+							   usb_device_descriptor[8]="$msb$lsb"
+							   printf "idProduct %.2x%.2x " $lsb $msb
+								;;
+							4) msb=$(($((0x${data_str[3]} & 0xFF000000)) >> 24 ))
+							   lsb=$(($((0x${data_str[3]} & 0x00FF0000)) >> 16 ))
+							   usb_device_descriptor[9]="$msb$lsb"
+							   printf "bcdDev %.2x%.2x " $lsb $msb
+
+							   usb_device_descriptor[10]=$(($((0x${data_str[3]} & 0x0000FF00)) >> 8 ))
+							   printf "iManufact %s " ${usb_device_descriptor[10]}
+
+							   usb_device_descriptor[11]=$((0x${data_str[3]} & 0x0000FF))
+							   printf "iProduct %s " ${usb_device_descriptor[11]}
+								 ;;
+							5) usb_device_descriptor[12]=$(($((0x${data_str[4]} & 0x0000FF00)) >> 8 ))
+							   printf "iSerialNum %s " ${usb_device_descriptor[12]}
+
+							   usb_device_descriptor[13]=$((0x${data_str[4]} & 0x0000FF))
+							   printf "bNumConf %s\n" ${usb_device_descriptor[13]}
+								;;
 							esac
 							r=`expr $r + 1`
 						done
