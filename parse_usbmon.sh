@@ -83,11 +83,13 @@ INVALID=-1
 parse_usb_requests(){
 	local req_line="$@" # get all args
 	local data_str=()
+	local temp_interface_desc=() temp_endpoint_desc=()
 	local datalen=0 data_available=$INVALID
 	local Direction=0 Type=0 Recep=0
 	local msb=0 lsb=0
 	local equal_pos=0 received_data=0 data_start=0
 	local datastr=0 wtotallen=0
+	local interface=0 endpoint=0 num_endpoints=0 char=0
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -346,7 +348,7 @@ parse_usb_requests(){
 							r=`expr $r + 1`
 						done
 						;;
-					2) for i in 1 2 3
+					2) for i in 1 2 3 #TODO-logic assumes that there is only one conf descriptor
 					   do
 						case $i in
 						1) printf "\nConfig Desc =>"
@@ -380,6 +382,72 @@ parse_usb_requests(){
 						   printf "bMaxPower %s " ${usb_config_descriptor[7]}
 							;;
 						esac
+					   done
+
+					   if [ "$datalen" -eq 9 ]
+					   then
+						printf "\n"
+						return 0
+					   fi
+
+					   if [ "${usb_config_descriptor[2]}" -gt 9 ]
+					   then
+						received_data=${received_data:20}
+					   else
+						return 0
+					   fi
+
+					   for (( interface=0; interface < ${usb_config_descriptor[3]}; interface++ ))
+					   do
+						i=0
+						while [ $i -le 17 ]
+						do
+							char=${received_data:0:1}
+							received_data=${received_data:1}
+							if [ "$char" = " " ]
+							then
+								continue
+							fi
+								temp_interface_desc[$i]=$char
+								i=`expr $i + 1`
+						done
+
+						printf "\nInterface descriptor $interface => "
+						printf "bLen %s " ${temp_interface_desc[0]}${temp_interface_desc[1]}
+						printf "bDescType %s " ${temp_interface_desc[2]}${temp_interface_desc[3]}
+						printf "bINum %s " ${temp_interface_desc[4]}${temp_interface_desc[5]}
+						printf "bAltSetting %s " ${temp_interface_desc[6]}${temp_interface_desc[7]}
+						printf "bNumEpt %s " ${temp_interface_desc[8]}${temp_interface_desc[9]}
+						printf "bIClass %s " ${temp_interface_desc[10]}${temp_interface_desc[11]}
+						printf "bISubClass %s " ${temp_interface_desc[12]}${temp_interface_desc[13]}
+						printf "bIProto %s " ${temp_interface_desc[14]}${temp_interface_desc[15]}
+						printf "iInterface %s " ${temp_interface_desc[16]}${temp_interface_desc[17]}
+
+						num_endpoints=${temp_interface_desc[8]}${temp_interface_desc[9]}
+						for (( endpoint=0; endpoint < $num_endpoints; endpoint++ ))
+						do
+							i=0
+							while [ $i -le 13 ]
+							do
+								char=${received_data:0:1}
+								received_data=${received_data:1}
+								if [ "$char" = " " ]
+								then
+									continue
+								fi
+									temp_endpoint_desc[$i]=$char
+									i=`expr $i + 1`
+							done
+							printf "\nEndpoint descriptor $endpoint => "
+							printf "bLen %s " ${temp_endpoint_desc[0]}${temp_endpoint_desc[1]}
+							printf "bDescType %s " ${temp_endpoint_desc[2]}${temp_endpoint_desc[3]}
+							printf "bEptAddr %s " ${temp_endpoint_desc[4]}${temp_endpoint_desc[5]}
+							printf "bmAttr %s " ${temp_endpoint_desc[6]}${temp_endpoint_desc[7]}
+							lsb=${temp_endpoint_desc[8]}${temp_endpoint_desc[9]}
+							msb=${temp_endpoint_desc[10]}${temp_endpoint_desc[11]}
+							printf "wMaxPktSize %s " $((0x$msb$lsb))
+							printf "bInterval %s" ${temp_endpoint_desc[12]}${temp_endpoint_desc[13]}
+						done
 					   done
 						;;
 					3) ;;
