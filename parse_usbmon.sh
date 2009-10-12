@@ -76,6 +76,7 @@ FALSE=1
 no=0
 yes=1
 INVALID=-1
+save_iinterface=-1
 
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
@@ -421,7 +422,8 @@ parse_usb_requests(){
 						printf "bIClass %s " ${temp_interface_desc[10]}${temp_interface_desc[11]}
 						printf "bISubClass %s " ${temp_interface_desc[12]}${temp_interface_desc[13]}
 						printf "bIProto %s " ${temp_interface_desc[14]}${temp_interface_desc[15]}
-						printf "iInterface %s " ${temp_interface_desc[16]}${temp_interface_desc[17]}
+						save_iinterface=$((0x${temp_interface_desc[16]}${temp_interface_desc[17]}))
+						printf "iInterface %s " $save_iinterface
 
 						num_endpoints=${temp_interface_desc[8]}${temp_interface_desc[9]}
 						for (( endpoint=0; endpoint < $num_endpoints; endpoint++ ))
@@ -450,7 +452,33 @@ parse_usb_requests(){
 						done
 					   done
 						;;
-					3) ;;
+					3) i=0
+					   printf "\n"
+					   desc_idx=$((0x${usb_ctrlrequest[2]} & 0x00FF))
+					   case $desc_idx in
+					   ${usb_device_descriptor[10]}) printf "Manufacturer => " ;;
+					   ${usb_device_descriptor[11]}) printf "Product => ";;
+					   ${usb_device_descriptor[12]}) printf "SerialNumber => ";;
+					   ${usb_config_descriptor[5]}) printf "Configuration => ";;
+					   $save_iinterface) printf "Interface => ";;
+					   esac
+
+					   received_data=${received_data:4} #TODO - skipped first 2 bytes ( bLength & bDescriptorType )
+					   while [ $i -le $datalen ]
+					   do
+						char=${received_data:0:1}
+						if [ "$char" = " " ]
+						then
+							received_data=${received_data:1}
+							continue
+						fi
+
+						char=${received_data:0:2}
+						received_data=${received_data:2}
+						printf \\$(printf '%03o' $((0x$char))) #decimal to ascii
+						i=`expr $i + 1`
+					   done
+						;;
 					4) ;;
 					5) ;;
 					6) ;;
