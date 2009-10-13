@@ -404,6 +404,12 @@ parse_usb_requests(){
 						while [ $i -le 17 ]
 						do
 							char=${received_data:0:1}
+							if [ "$char" = "" ] #we expect proper data but received endofline
+							then
+								printf "\n-DATAERR\n"
+								return
+							fi
+
 							received_data=${received_data:1}
 							if [ "$char" = " " ]
 							then
@@ -418,20 +424,26 @@ parse_usb_requests(){
 						printf "bDescType %s " ${temp_interface_desc[2]}${temp_interface_desc[3]}
 						printf "bINum %s " ${temp_interface_desc[4]}${temp_interface_desc[5]}
 						printf "bAltSetting %s " ${temp_interface_desc[6]}${temp_interface_desc[7]}
-						printf "bNumEpt %s " ${temp_interface_desc[8]}${temp_interface_desc[9]}
+						num_endpoints=$((0x${temp_interface_desc[8]}${temp_interface_desc[9]}))
+						printf "bNumEpt %s " $num_endpoints
 						printf "bIClass %s " ${temp_interface_desc[10]}${temp_interface_desc[11]}
 						printf "bISubClass %s " ${temp_interface_desc[12]}${temp_interface_desc[13]}
 						printf "bIProto %s " ${temp_interface_desc[14]}${temp_interface_desc[15]}
 						save_iinterface=$((0x${temp_interface_desc[16]}${temp_interface_desc[17]}))
 						printf "iInterface %s " $save_iinterface
 
-						num_endpoints=${temp_interface_desc[8]}${temp_interface_desc[9]}
 						for (( endpoint=0; endpoint < $num_endpoints; endpoint++ ))
 						do
 							i=0
 							while [ $i -le 13 ]
 							do
 								char=${received_data:0:1}
+								if [ "$char" = "" ] #we expect proper data but received endofline
+								then
+									printf "\n-DATAERR\n"
+									return
+								fi
+
 								received_data=${received_data:1}
 								if [ "$char" = " " ]
 								then
@@ -456,6 +468,15 @@ parse_usb_requests(){
 					   printf "\n"
 					   desc_idx=$((0x${usb_ctrlrequest[2]} & 0x00FF))
 					   case $desc_idx in
+					   0) printf "Language => "
+						received_data=${received_data:4}
+						if [ "$received_data" = "0904" ] #lets compare with 0904 instead 0409
+						then
+							printf "ENG-US"
+						fi
+						printf "\n"
+						return
+						;;
 					   ${usb_device_descriptor[10]}) printf "Manufacturer => " ;;
 					   ${usb_device_descriptor[11]}) printf "Product => ";;
 					   ${usb_device_descriptor[12]}) printf "SerialNumber => ";;
