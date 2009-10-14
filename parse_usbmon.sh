@@ -467,7 +467,7 @@ parse_usb_requests(){
 						done
 					   done
 						;;
-					3) i=0
+					3) i=1
 					   printf "\n"
 					   desc_idx=$((0x${usb_ctrlrequest[2]} & 0x00FF))
 					   case $desc_idx in
@@ -488,7 +488,7 @@ parse_usb_requests(){
 					   esac
 
 					   received_data=${received_data:4} #TODO - skipped first 2 bytes ( bLength & bDescriptorType )
-					   while [ $i -le $datalen ]
+					   while [ $i -le `expr $datalen - 2` ]
 					   do
 						char=${received_data:0:1}
 						if [ "$char" = " " ]
@@ -499,6 +499,12 @@ parse_usb_requests(){
 
 						char=${received_data:0:2}
 						received_data=${received_data:2}
+
+						if [ "$char" = "00" ] #skip printing if "00"
+						then
+							i=`expr $i + 1`
+							continue
+						fi
 						printf \\$(printf '%03o' $((0x$char))) #decimal to ascii
 						i=`expr $i + 1`
 					   done
