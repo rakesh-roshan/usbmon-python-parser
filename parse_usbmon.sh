@@ -78,6 +78,8 @@ yes=1
 INVALID=-1
 save_iinterface=-1
 
+iInterface_arr=() #array for saving string desc index
+
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
 
@@ -430,6 +432,7 @@ parse_usb_requests(){
 						printf "bISubClass %s " ${temp_interface_desc[12]}${temp_interface_desc[13]}
 						printf "bIProto %s " ${temp_interface_desc[14]}${temp_interface_desc[15]}
 						save_iinterface=$((0x${temp_interface_desc[16]}${temp_interface_desc[17]}))
+						iInterface_arr[$save_iinterface]=$save_iinterface
 						printf "iInterface %s " $save_iinterface
 
 						for (( endpoint=0; endpoint < $num_endpoints; endpoint++ ))
@@ -481,7 +484,7 @@ parse_usb_requests(){
 					   ${usb_device_descriptor[11]}) printf "Product => ";;
 					   ${usb_device_descriptor[12]}) printf "SerialNumber => ";;
 					   ${usb_config_descriptor[5]}) printf "Configuration => ";;
-					   $save_iinterface) printf "Interface => ";;
+					   ${iInterface_arr[$desc_idx]}) printf "Interface => ";;
 					   esac
 
 					   received_data=${received_data:4} #TODO - skipped first 2 bytes ( bLength & bDescriptorType )
