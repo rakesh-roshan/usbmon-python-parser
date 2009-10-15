@@ -83,6 +83,164 @@ iInterface_arr=() #array for saving string desc index
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
 
+# 09022000 01010680 fa090400 00020806 50070705 01020002 00070581 02000200
+parse_config_desc() {
+	local temp_config_desc="$@"
+	local config_desc=""
+	local temp=0 i=0 d_len=0 d_type=0
+	local endpoint=0 num_endpoints=0
+
+	i=1
+	while [ $i -le "$datalen" ]
+	do
+		temp=${temp_config_desc:0:1}
+		if [ "$temp" = " " ]
+		then
+			temp_config_desc=${temp_config_desc:1}
+			continue
+		fi
+
+		if [ "$temp" = "" ]
+		then
+			datalen=`expr $i - 1` #update newdata length to only actual received data 
+			break #exit from loop if we detectedunexpected end of line
+		fi
+		temp=${temp_config_desc:0:2}
+		temp_config_desc=${temp_config_desc:2}
+		config_desc=$config_desc$temp #concatanate every byte after removing space
+		i=`expr $i + 1`
+	done
+
+	i=1
+	while [ $i -le "$datalen" ]
+	do
+		d_len=$((0x${config_desc:0:2}))
+		d_type=$((0x${config_desc:2:2}))
+		case $d_type in
+		2) printf "\nConfig Desc => "
+
+			usb_config_descriptor[0]=$((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			usb_config_descriptor[1]=$((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			msb=${config_desc:0:2}
+			lsb=${config_desc:2:2}
+			usb_config_descriptor[2]=$((0x$lsb$msb))
+			config_desc=${config_desc:4}
+
+			usb_config_descriptor[3]=$((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			usb_config_descriptor[4]=$((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			usb_config_descriptor[5]=$((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			usb_config_descriptor[6]=$((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			usb_config_descriptor[7]=$((0x${config_desc:0:2}))
+			config_desc=${config_desc:2} #remove last byte from datastring
+												   #but allow if data is only _conf_ desc
+			test \( $d_len -ne 9 \) -o \( $datalen -ne ${usb_config_descriptor[2]} \) -a \( $datalen -gt 9 \)
+			if test $? -eq $TRUE
+			then
+				printf "CONFIG_DESC ERR\n"
+				return
+			fi
+
+			printf " bLen %s " ${usb_config_descriptor[0]}
+			printf "bDescType %s " ${usb_config_descriptor[1]}
+			printf "wTotalLen %s " ${usb_config_descriptor[2]}
+			printf "bNumInterfaces %s " ${usb_config_descriptor[3]}
+			printf "bConfVal %s " ${usb_config_descriptor[4]}
+			printf "iConf %s " ${usb_config_descriptor[5]}
+			printf "bmAttr %s " ${usb_config_descriptor[6]}
+			printf "bMaxPower %s " ${usb_config_descriptor[7]}
+			i=`expr $i + 9`
+			;;
+		4) printf "\nInterface Desc => "
+
+			test \( $d_len -ne 9 \)
+			if test $? -eq $TRUE
+			then
+				printf "INTERFACE_DESC ERR\n"
+				return
+			fi
+
+			printf "bLen %s " $((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			printf "bDescType %s " $((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			printf "bINum %s " $((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			printf "bAltSetting %s " $((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			num_endpoints=$((0x${config_desc:0:2}))
+			printf "bNumEpt %s " $num_endpoints
+			config_desc=${config_desc:2}
+
+			printf "bIClass %s " $((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			printf "bISubClass %s " $((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			printf "bIProto %s " $((0x${config_desc:0:2}))
+			config_desc=${config_desc:2}
+
+			save_iinterface=$((0x${config_desc:0:2}))
+			iInterface_arr[$save_iinterface]=$save_iinterface
+			printf "iInterface %s " $save_iinterface
+			config_desc=${config_desc:2}
+
+			i=`expr $i + 9`
+
+			for (( endpoint=0; endpoint < $num_endpoints; endpoint++ ))
+			do
+				printf "\nEpt Desc $endpoint => "
+
+				test \( $((0x${config_desc:0:2})) -ne 7 \)
+				if test $? -eq $TRUE
+				then
+					printf "ENDPOINT_DESC ERR\n"
+					return
+				fi
+
+				printf "bLen %s " $((0x${config_desc:0:2}))
+				config_desc=${config_desc:2}
+
+				printf "bDescType %s " $((0x${config_desc:0:2}))
+				config_desc=${config_desc:2}
+
+				printf "bEptAddr %s " ${config_desc:0:2} #no decimal conversion necessary
+				config_desc=${config_desc:2}
+
+				printf "bmAttr %s " $((0x${config_desc:0:2}))
+				config_desc=${config_desc:2}
+
+				msb=${config_desc:0:2}
+				lsb=${config_desc:2:2}
+				printf "wMaxPktSize %s " $((0x$lsb$msb))
+				config_desc=${config_desc:4}
+
+				printf "bInterval %s " $((0x${config_desc:0:2}))
+				config_desc=${config_desc:2}
+
+				i=`expr $i + 7`
+			done
+			;;
+		esac
+	done
+}
+
 parse_usb_requests(){
 	local req_line="$@" # get all args
 	local data_str=()
@@ -91,8 +249,7 @@ parse_usb_requests(){
 	local Direction=0 Type=0 Recep=0
 	local msb=0 lsb=0
 	local equal_pos=0 received_data=0 data_start=0
-	local datastr=0 wtotallen=0
-	local interface=0 endpoint=0 num_endpoints=0 char=0
+	local datastr=0 wtotallen=0 char=0
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -351,121 +508,7 @@ parse_usb_requests(){
 							r=`expr $r + 1`
 						done
 						;;
-					2) for i in 1 2 3 #TODO-logic assumes that there is only one conf descriptor
-					   do
-						case $i in
-						1) printf "\nConfig Desc =>"
-						   usb_config_descriptor[0]=$(($((0x${data_str[0]} & 0xFF000000)) >> 24 ))
-						   printf " bLen %s " ${usb_config_descriptor[0]}
-
-						   usb_config_descriptor[1]=$(($((0x${data_str[0]} & 0x00FF0000)) >> 16 ))
-						   printf "bDescType %s " ${usb_config_descriptor[1]}
-
-						   datastr="${data_str[0]}"
-						   wtotallen="${datastr:4:4}"
-						   msb=${wtotallen:0:2}
-						   lsb=${wtotallen:2:2}
-						   usb_config_descriptor[2]=$((0x$lsb$msb))
-						   printf "wTotalLen %s " ${usb_config_descriptor[2]}
-							;;
-						2) usb_config_descriptor[3]=$(($((0x${data_str[1]} & 0xFF000000)) >> 24 ))
-						   printf "bNumInterfaces %s " ${usb_config_descriptor[3]}
-
-						   usb_config_descriptor[4]=$(($((0x${data_str[1]} & 0x00FF0000)) >> 16 ))
-						   printf "bConfVal %s " ${usb_config_descriptor[4]}
-
-						   usb_config_descriptor[5]=$(($((0x${data_str[1]} & 0x0000FF00)) >> 8 ))
-						   printf "iConf %s " ${usb_config_descriptor[5]}
-
-						   usb_config_descriptor[6]=$((0x${data_str[1]} & 0x000000FF))
-						   printf "bmAttr %s " ${usb_config_descriptor[6]}
-							;;
-						3) datastr="${data_str[2]}"
-						   usb_config_descriptor[7]=$((0x${datastr:0:2})) #store in decimal
-						   printf "bMaxPower %s " ${usb_config_descriptor[7]}
-							;;
-						esac
-					   done
-
-					   if [ "$datalen" -eq 9 ]
-					   then
-						printf "\n"
-						return 0
-					   fi
-
-					   if [ "${usb_config_descriptor[2]}" -gt 9 ]
-					   then
-						received_data=${received_data:20}
-					   else
-						return 0
-					   fi
-
-					   for (( interface=0; interface < ${usb_config_descriptor[3]}; interface++ ))
-					   do
-						i=0
-						while [ $i -le 17 ]
-						do
-							char=${received_data:0:1}
-							if [ "$char" = "" ] #we expect proper data but received endofline
-							then
-								printf "\n-DATAERR\n"
-								return
-							fi
-
-							received_data=${received_data:1}
-							if [ "$char" = " " ]
-							then
-								continue
-							fi
-								temp_interface_desc[$i]=$char
-								i=`expr $i + 1`
-						done
-
-						printf "\nInterface descriptor $interface => "
-						printf "bLen %s " ${temp_interface_desc[0]}${temp_interface_desc[1]}
-						printf "bDescType %s " ${temp_interface_desc[2]}${temp_interface_desc[3]}
-						printf "bINum %s " ${temp_interface_desc[4]}${temp_interface_desc[5]}
-						printf "bAltSetting %s " ${temp_interface_desc[6]}${temp_interface_desc[7]}
-						num_endpoints=$((0x${temp_interface_desc[8]}${temp_interface_desc[9]}))
-						printf "bNumEpt %s " $num_endpoints
-						printf "bIClass %s " ${temp_interface_desc[10]}${temp_interface_desc[11]}
-						printf "bISubClass %s " ${temp_interface_desc[12]}${temp_interface_desc[13]}
-						printf "bIProto %s " ${temp_interface_desc[14]}${temp_interface_desc[15]}
-						save_iinterface=$((0x${temp_interface_desc[16]}${temp_interface_desc[17]}))
-						iInterface_arr[$save_iinterface]=$save_iinterface
-						printf "iInterface %s " $save_iinterface
-
-						for (( endpoint=0; endpoint < $num_endpoints; endpoint++ ))
-						do
-							i=0
-							while [ $i -le 13 ]
-							do
-								char=${received_data:0:1}
-								if [ "$char" = "" ] #we expect proper data but received endofline
-								then
-									printf "\n-DATAERR\n"
-									return
-								fi
-
-								received_data=${received_data:1}
-								if [ "$char" = " " ]
-								then
-									continue
-								fi
-									temp_endpoint_desc[$i]=$char
-									i=`expr $i + 1`
-							done
-							printf "\nEndpoint descriptor $endpoint => "
-							printf "bLen %s " ${temp_endpoint_desc[0]}${temp_endpoint_desc[1]}
-							printf "bDescType %s " ${temp_endpoint_desc[2]}${temp_endpoint_desc[3]}
-							printf "bEptAddr %s " ${temp_endpoint_desc[4]}${temp_endpoint_desc[5]}
-							printf "bmAttr %s " ${temp_endpoint_desc[6]}${temp_endpoint_desc[7]}
-							lsb=${temp_endpoint_desc[8]}${temp_endpoint_desc[9]}
-							msb=${temp_endpoint_desc[10]}${temp_endpoint_desc[11]}
-							printf "wMaxPktSize %s " $((0x$msb$lsb))
-							printf "bInterval %s" ${temp_endpoint_desc[12]}${temp_endpoint_desc[13]}
-						done
-					   done
+					2) parse_config_desc $received_data
 						;;
 					3) i=1
 					   printf "\n"
