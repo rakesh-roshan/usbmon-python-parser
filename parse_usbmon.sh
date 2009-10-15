@@ -540,6 +540,12 @@ parse_usb_requests(){
 							continue
 						fi
 
+						if [ "$char" = "" ]
+						then
+							printf "\n"
+							return # unexpected EOL
+						fi
+
 						char=${received_data:0:2}
 						received_data=${received_data:2}
 
