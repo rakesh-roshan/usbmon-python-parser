@@ -647,6 +647,46 @@ processLine(){
 		E) event_str="ERR "
 		esac ;;
 	4) parse_address $i ;;
+	5) #process status feild
+		test \( "$ept_num" = "0" \) -a  \( "$event_type" = "S" \)
+		if test $? -eq $TRUE
+		then
+			setup_tag=$i
+			if [ $setup_tag != "s" ]
+			then
+				printf "\nSetup packet not captured => $line"
+				return
+			fi
+		fi
+
+		test \( "$ept_num" = "0" \) -a  \( "$event_type" = "C" \)
+		if test $? -eq $TRUE
+		then
+			if [ $setup_tag != "s" ]
+			then
+				printf "\nSkiping Callback => $line\n"
+				return; #don't want to process callback
+					#since previous setup tag was wrong.
+			fi
+			setup_tag=$i
+		fi
+
+		test \( "$ept_type" = "Bi" \) -o \( "$ept_type" = "Bo" \)
+		if test $? -eq $TRUE
+		then
+			if [ "$event_type" = "C" ]
+			then
+				if [ $i -ne 0 ]
+				then
+					printf "\nurb error $i => $line\n"
+					return #skip parsing
+				fi
+			fi
+		fi
+
+		# This field makes no sense for submissions & non control endpoints, just skip
+		;;
+	*) break ;; #we are done with for loop now break
 	esac
 
 	arg=`expr $arg + 1`
