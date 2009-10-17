@@ -79,6 +79,8 @@ INVALID=-1
 save_iinterface=-1
 
 iInterface_arr=() #array for saving string desc index
+InEpt_interfaceclass=()
+OutEpt_interfaceclass=() #save this endpoint belongs to which class?
 
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
@@ -89,6 +91,7 @@ parse_config_desc() {
 	local config_desc=""
 	local temp=0 i=0 d_len=0 d_type=0
 	local endpoint=0 num_endpoints=0
+	local interface_class=0 temp_ept_num=0 bEptAddr=0 ept_direction=0
 
 	i=1
 	while [ $i -le "$datalen" ]
@@ -187,7 +190,8 @@ parse_config_desc() {
 			printf "bNumEpt %s " $num_endpoints
 			config_desc=${config_desc:2}
 
-			printf "bIClass %s " $((0x${config_desc:0:2}))
+			interface_class=${config_desc:0:2}
+			printf "bIClass %s " $interface_class
 			config_desc=${config_desc:2}
 
 			printf "bISubClass %s " $((0x${config_desc:0:2}))
@@ -220,7 +224,16 @@ parse_config_desc() {
 				printf "bDescType %s " $((0x${config_desc:0:2}))
 				config_desc=${config_desc:2}
 
-				printf "bEptAddr %s " ${config_desc:0:2} #no decimal conversion necessary
+				bEptAddr=${config_desc:0:2} #no decimal conversion necessary
+				printf "bEptAddr %s " $bEptAddr
+				temp_ept_num=$((0x$bEptAddr & 0x0F))
+				ept_direction=$(($((0x$bEptAddr & 0x80)) >> 7))
+				if [ $ept_direction = "1" ]
+				then
+					InEpt_interfaceclass[$temp_ept_num]=$interface_class
+				else
+					OutEpt_interfaceclass[$temp_ept_num]=$interface_class
+				fi
 				config_desc=${config_desc:2}
 
 				printf "bmAttr %s " $((0x${config_desc:0:2}))
