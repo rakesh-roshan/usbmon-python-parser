@@ -89,9 +89,104 @@ OutEpt_interfaceclass=() #save this endpoint belongs to which class?
 #************************************************
 #  Parse Mass storage specific command and data
 #************************************************
+
+cdb=()
+
+# Print SCSI commands
+print_cbw_cmd0() {
+	local cbw_cmd0="$@"
+
+	printf "\n       CDB => "
+	case $cbw_cmd0 in
+	04) printf "FormatUnit " ;;
+	12) printf "Inquiry " ;;
+	15) printf "ModeSel6 " ;;
+	55) printf "ModeSel10 " ;;
+	1a) printf "ModeSen6 " ;;
+	5a) printf "ModeSen10 " ;;
+	1e) printf "PAMRemov " ;;
+	08) printf "Read6 " ;;
+	28) printf "Read10 " ;;
+	a8) printf "Read12 " ;;
+	25) printf "ReadCapa " ;;
+	23) printf "RdFormtCapa " ;;
+	17) printf "Release " ;;
+	03) printf "ReqSense " ;;
+	16) printf "Reserve " ;;
+	1d) printf "SendDiag " ;;
+	1b) printf "SStopUnit " ;;
+	35) printf "SyncCache " ;;
+	00) printf "TUnitRdy " ;;
+	2f) printf "Verify " ;;
+	0a) printf "Write6 " ;;
+	2a) printf "Write10 " ;;
+	aa) printf "Write12 " ;;
+	*) printf "Invalid " ;;
+	esac
+}
+
+#	/* Command Block Wrapper */
+#	struct bulk_cb_wrap {
+#		__le32  Signature;              /* Contains 'USBC' */
+#		u32     Tag;                    /* Unique per command id */
+#		__le32  DataTransferLength;     /* Size of the data */
+#		u8      Flags;                  /* Direction in bit 7 */
+#		u8      Lun;                    /* LUN (normally 0) */
+#		u8      Length;                 /* Of the CDB, <= MAX_COMMAND_SIZE */
+#		u8      CDB[16];                /* Command Data Block */
+#};
+
 parse_cbw() {
 	local cbw="$@"
-	printf " cbw is $cbw\n"
+	cbw_sign=""
+	r=1
+	printf "\nCBW => "
+	for i in $cbw
+	do
+		case $r in
+		1) cbw_sign=${i:6:2}${i:4:2}${i:2:2}${i:0:2} #restructure byte order
+		   printf "Sig %s " $cbw_sign
+		   if [ $cbw_sign != "43425355" ]
+		   then
+			printf "ErrInvalidCBW"
+			return
+		   fi
+			;;
+		2) printf "Tag %s " ${i:6:2}${i:4:2}${i:2:2}${i:0:2};;
+		3) expected_data=$((0x${i:6:2}${i:4:2}${i:2:2}${i:0:2}))
+		   printf "DataLen %s " $expected_data
+			;;
+		4) printf "Flags %s " ${i:0:2}
+		   printf "Lun %s " $((${i:2:2}))
+		   printf "CmdLen %s " $((0x${i:4:2}))
+		   cdb[0]=${i:6:2}
+		   print_cbw_cmd0 ${cdb[0]}
+			;;
+		5) cdb[1]=${i:0:2}
+		   cdb[2]=${i:2:2}
+		   cdb[3]=${i:4:2}
+		   cdb[4]=${i:6:2}
+			;;
+		6) cdb[5]=${i:0:2}
+		   cdb[6]=${i:2:2}
+		   cdb[7]=${i:4:2}
+		   cdb[8]=${i:6:2}
+			;;
+		7) cdb[9]=${i:0:2}
+		   cdb[10]=${i:2:2}
+		   cdb[11]=${i:4:2}
+		   cdb[12]=${i:6:2}
+			;;
+		8) cdb[13]=${i:0:2}
+		   cdb[14]=${i:2:2}
+		   cdb[15]=${i:4:2}
+			;;
+		*) break ;;
+		esac
+		r=`expr $r + 1`
+	done
+	printf "%s %s %s %s %s %s %s " ${cdb[1]} ${cdb[2]} ${cdb[3]} ${cdb[4]} ${cdb[5]} ${cdb[6]} ${cdb[7]}
+	printf "%s %s %s %s %s %s %s %s" ${cdb[8]} ${cdb[9]} ${cdb[10]} ${cdb[11]} ${cdb[12]} ${cdb[13]} ${cdb[14]} ${cdb[15]}
 }
 
 #************************************************
@@ -759,7 +854,7 @@ processLine(){
 			if [ $setup_tag != "s" ]
 			then
 				printf "\nSkiping Callback => $line\n"
-				return; #don't want to process callback
+				return	#don't want to process callback
 					#since previous setup tag was wrong.
 			fi
 			setup_tag=$i
@@ -772,7 +867,7 @@ processLine(){
 			then
 				if [ $i -ne 0 ]
 				then
-					printf "\nurb error $i => $line\n"
+					printf "\nurb error $i => $line"
 					return #skip parsing
 				fi
 			fi
