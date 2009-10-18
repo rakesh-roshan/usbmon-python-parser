@@ -77,6 +77,7 @@ no=0
 yes=1
 INVALID=-1
 save_iinterface=-1
+submission_datalen=0
 
 iInterface_arr=() #array for saving string desc index
 InEpt_interfaceclass=()
@@ -84,6 +85,74 @@ OutEpt_interfaceclass=() #save this endpoint belongs to which class?
 
 # NOTE - Please use only bash for now to test this script.
 # i.e. run this script only as "bash parse_usbmon.sh"
+
+#************************************************
+#  Parse Mass storage specific command and data
+#************************************************
+parse_cbw() {
+	local cbw="$@"
+	printf " cbw is $cbw\n"
+}
+
+#************************************************
+
+parse_bulk_in() {
+	local bulk_in="$@"
+
+#	if [ ${InEpt_interfaceclass[$ept_num]} = "08" ]
+#	then
+#		printf "bulk In endpoint -> class ${InEpt_interfaceclass[$ept_num]} $bulk_in\n"
+#	fi
+}
+
+parse_bulk_out() {
+	local bulk_out="$@"
+
+	l=1
+	OIFS=$IFS
+	IFS=$(echo -en " ")
+	for i in $bulk_out
+	do
+		if [ $l -le 5 ]
+		then
+			temp=`expr ${#i} + 1`
+			bulk_out=${bulk_out:$temp} # save received data as a string
+		else
+			break
+		fi
+		l=`expr $l + 1`
+	done
+
+	space_pos=`expr index "$bulk_out" " "` # find out position of first space
+	datalen=${bulk_out:0:`expr $space_pos - 1`}
+	bulk_out=${bulk_out:$space_pos} # skip characters of datalen and space
+
+#**************************************************************************************
+#	Interface class - Mass storage Subclass- ??
+#**************************************************************************************
+	test \( $event_str = "SUB" \) -a \( ${OutEpt_interfaceclass[$ept_num]} = "08" \)
+	if test $? -eq $TRUE
+	then
+		bulk_out=${bulk_out:2} # skip 2 characters '=' and space
+		submission_datalen=$datalen
+		bulk_out_submission=$bulk_out # save and process only if we are sure callback has same datalen
+	fi
+
+	test \( $event_str = "CBK" \) -a \( ${OutEpt_interfaceclass[$ept_num]} = "08" \)
+	if test $? -eq $TRUE
+	then
+		if [ $submission_datalen -eq $datalen ] #check if submission and callback datalen is same
+		then
+			case $datalen in
+			31) parse_cbw $bulk_out_submission ;;
+			esac
+
+			submission_datalen=0 #make it 0 for next processing
+			bulk_out_submission="" #we are done with procession, make it null
+		fi
+	fi
+#**************************************************************************************
+}
 
 # 09022000 01010680 fa090400 00020806 50070705 01020002 00070581 02000200
 parse_config_desc() {
@@ -263,6 +332,18 @@ parse_usb_requests(){
 	local msb=0 lsb=0
 	local equal_pos=0 received_data=0 data_start=0
 	local datastr=0 wtotallen=0 char=0
+
+	test \( "$type_dir" = "Bi" \)
+	if test $? -eq $TRUE
+	then
+		parse_bulk_in $req_line
+	fi
+
+	test \( "$type_dir" = "Bo" \)
+	if test $? -eq $TRUE
+	then
+		parse_bulk_out $req_line
+	fi
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
