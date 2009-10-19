@@ -190,18 +190,77 @@ parse_cbw() {
 }
 
 #************************************************
+bulkin_sub_datalen=0
 
 parse_bulk_in() {
 	local bulk_in="$@"
+	local datalen=0
 
-#	if [ ${InEpt_interfaceclass[$ept_num]} = "08" ]
-#	then
-#		printf "bulk In endpoint -> class ${InEpt_interfaceclass[$ept_num]} $bulk_in\n"
-#	fi
+	l=1
+	OIFS=$IFS
+	IFS=$(echo -en " ")
+	for i in $bulk_in
+	do
+		if [ $l -le 5 ]
+		then
+			temp=`expr ${#i} + 1`
+			bulk_in=${bulk_in:$temp} # save received data as a string
+		else
+			break
+		fi
+		l=`expr $l + 1`
+	done
+
+	space_pos=`expr index "$bulk_in" " "` # find out position of first space
+	datalen=${bulk_in:0:`expr $space_pos - 1`}
+	bulk_in=${bulk_in:$space_pos} # skip characters of datalen and space
+
+#**************************************************************************************
+#	Interface class - Mass storage Subclass- ??
+#**************************************************************************************
+	test \( $event_str = "SUB" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "08" \)
+	if test $? -eq $TRUE
+	then
+		bulkin_sub_datalen=`expr $bulkin_sub_datalen + $datalen`
+	fi
+
+	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "08" \)
+	if test $? -eq $TRUE
+	then
+		bulk_in=${bulk_in:2} # skip 2 characters '=' and space
+		if [ $expected_data != 0 ]
+		then
+			if [ $bulkin_sub_datalen -eq $expected_data ] #check if submission and callback datalen is same
+			then
+				printf "\nData => $bulk_in" #print only start of data.
+				if [ $bulkin_sub_datalen -gt 32 ]
+				then
+					printf " snip..."
+				fi
+				bulkin_sub_datalen=0	#ignore any more data for printing
+			fi
+
+			test \( $bulkin_sub_datalen = "13" \)
+			if test $? -eq $TRUE
+			then
+				bulkin_sub_datalen=0
+			fi
+		fi
+
+		if [ $expected_data = 0 ]
+		then
+			test \( $bulkin_sub_datalen = "13" \)
+			if test $? -eq $TRUE
+			then
+				bulkin_sub_datalen=0
+			fi
+		fi
+	fi
 }
 
 parse_bulk_out() {
 	local bulk_out="$@"
+	local datalen=0
 
 	l=1
 	OIFS=$IFS
@@ -867,6 +926,8 @@ processLine(){
 			then
 				if [ $i -ne 0 ]
 				then
+					bulkin_sub_datalen=0	#make this 0 since we are skiping
+								#parsing of BulkIn Callback
 					printf "\nurb error $i => $line"
 					return #skip parsing
 				fi
