@@ -138,6 +138,7 @@ print_cbw_cmd0() {
 
 parse_cbw() {
 	local cbw="$@"
+	local r=0
 	cbw_sign=""
 	r=1
 	printf "\nCBW => "
@@ -189,6 +190,105 @@ parse_cbw() {
 	printf "%s %s %s %s %s %s %s %s" ${cdb[8]} ${cdb[9]} ${cdb[10]} ${cdb[11]} ${cdb[12]} ${cdb[13]} ${cdb[14]} ${cdb[15]}
 }
 
+parse_bulkindata() {
+	local bulk_in_data="$@"
+	local r=0 char=0
+
+	printf "\nData => "
+
+	# Inquiry Reference http://en.wikipedia.org/wiki/SCSI_Inquiry_Command
+	test \( ${cdb[0]} = "12" \) -a \( $bulkin_sub_datalen = "36" \)
+	if test $? -eq $TRUE
+	then
+		r=1
+		for i in $bulk_in_data
+		do
+			case $r in
+			1) printf "PDT %s " ${i:0:2}
+			   printf "RMB %s " ${i:2:2}
+			   printf "ANSI_3 %s " ${i:4:2}
+			   printf "RDF_4 %s " ${i:6:2}
+				;;
+			2) printf "ALEN %s " $((0x${i:0:2}))
+				;;
+			3) printf "Vendor "
+			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char))) #decimal to ascii
+			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
+				;;
+			4) char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
+			   printf " " #space
+				;;
+			5) printf "Product "
+			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
+				;;
+			6)
+			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
+				;;
+			7)
+			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
+				;;
+			8)
+			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
+			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
+				;;
+			9) #TODO print revision
+				;;
+			esac
+		r=`expr $r + 1`
+		done
+		return #done, now return from function
+	fi
+
+	printf "$bulk_in_data"
+}
+
+parse_csw() {
+	local csw="$@"
+	local r=0 csw_sign=0
+
+	r=1
+	printf "\nCSW => "
+	for i in $csw
+	do
+		case $r in
+		1) csw_sign=${i:6:2}${i:4:2}${i:2:2}${i:0:2} #restructure byte order
+		   printf "Sig %s " $csw_sign
+		   if [ $csw_sign != "53425355" ]
+		   then
+			printf "ErrInvalidCSW\n"
+			return
+		   fi
+			;;
+		2) printf "Tag %s " ${i:6:2}${i:4:2}${i:2:2}${i:0:2};;
+		3) printf "Residue %s " $((0x${i:6:2}${i:4:2}${i:2:2}${i:0:2}));;
+		4) printf "Status "
+			case $i in
+			00) printf "Pass" ;;
+			01) printf "Pass" ;;
+			02) printf "Pass" ;;
+			esac
+		esac
+		r=`expr $r + 1`
+	done
+	printf "\n" #one transaction of CBW, DATA & CSW is completed
+}
+
 #************************************************
 bulkin_sub_datalen=0
 
@@ -232,7 +332,7 @@ parse_bulk_in() {
 		then
 			if [ $bulkin_sub_datalen -eq $expected_data ] #check if submission and callback datalen is same
 			then
-				printf "\nData => $bulk_in" #print only start of data.
+				parse_bulkindata $bulk_in
 				if [ $bulkin_sub_datalen -gt 32 ]
 				then
 					printf " snip..."
@@ -243,6 +343,7 @@ parse_bulk_in() {
 			test \( $bulkin_sub_datalen = "13" \)
 			if test $? -eq $TRUE
 			then
+				parse_csw $bulk_in
 				bulkin_sub_datalen=0
 			fi
 		fi
@@ -252,6 +353,7 @@ parse_bulk_in() {
 			test \( $bulkin_sub_datalen = "13" \)
 			if test $? -eq $TRUE
 			then
+				parse_csw $bulk_in
 				bulkin_sub_datalen=0
 			fi
 		fi
