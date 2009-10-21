@@ -92,6 +92,7 @@ OutEpt_interfaceclass=() #save this endpoint belongs to which class?
 
 cdb=()
 
+# Reference http://www-ccf.fnal.gov/enstore/AMUdocs/Scalar1000/s1k_scsi.pdf
 # Print SCSI commands
 print_cbw_cmd0() {
 	local cbw_cmd0="$@"
@@ -301,8 +302,8 @@ parse_csw() {
 		4) printf "Status "
 			case $i in
 			00) printf "Pass" ;;
-			01) printf "Pass" ;;
-			02) printf "Pass" ;;
+			01) printf "FAIL" ;;
+			02) printf "ERROR" ;;
 			esac
 		esac
 		r=`expr $r + 1`
