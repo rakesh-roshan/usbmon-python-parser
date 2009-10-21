@@ -255,6 +255,27 @@ parse_bulkindata() {
 		return #done, now return from function
 	fi
 
+	# reference http://manpages.ubuntu.com/manpages/karmic/man8/sg_readcap.8.html
+	test \( ${cdb[0]} = "25" \) -a \( $bulkin_sub_datalen = "8" \)
+	if test $? -eq $TRUE
+	then
+		r=1
+		for i in $bulk_in_data
+		do
+			case $r in
+			1) lastblkaddr=$((0x$i))
+			   num_blks=`expr $lastblkaddr + 1`
+			   printf "Blks %s " $num_blks
+				;;
+			2) blk_size=$((0x$i))
+			   total_capa=`expr $num_blks \* $blk_size`
+			   printf "BlkSize %s TotalCapa %sMB" $blk_size `expr $total_capa / 1000000` #round up to MB's
+			esac
+			r=`expr $r + 1`
+		done
+		return
+	fi
+
 	printf "$bulk_in_data"
 }
 
