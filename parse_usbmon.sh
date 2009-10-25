@@ -58,7 +58,8 @@ std_req_flag=0x0000
 while getopts 'a:b:e:f:v' OPTION
 do
 	case $OPTION in
-	a) addr="$OPTARG"	;;
+	a) addr="$OPTARG"
+	   addr_f=1		;;
 	b) bus="$OPTARG"	;;
 	e) ept_f=1
 	   ept="$OPTARG"	;;
@@ -1107,34 +1108,48 @@ processLine(){
 	arg=`expr $arg + 1`
 	done
 
-	if [ $verbose ]
+	test \( "$ept_f" = "1" \) -a  \( "$addr_f" = "1" \)
+	if test $? -eq $TRUE
 	then
-		if [ $ept_f ]
+		test \( "$ept_str" = "$ept" \) -a  \( "$addr_str" = "$addr" \)
+		if test $? -eq $TRUE
 		then
-			test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
-			if test $? -eq $TRUE
+			if [ $verbose ]
 			then
 				printf "\nUrb %s Time %s " $urb_str $time_str
 				printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
-				parse_usb_requests $line #decide parsing of line based on endpoint
 			fi
-		else
-			printf "\nUrb %s Time %s " $urb_str $time_str
-			printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
 			parse_usb_requests $line
-		fi
-	else
-		if [ $ept_f ]
-		then
-			test \( "$ept_str" = "$ept" \) -a  \( -n "$ept_str" \)
-			if test $? -eq $TRUE
-			then
-				parse_usb_requests $line #decide parsing of line based on endpoint
-			fi
+			return
 		else
-			parse_usb_requests $line
+			return
 		fi
 	fi
+
+	test \( "$ept_f" = "1" \) -o  \( "$addr_f" = "1" \)
+	if test $? -eq $TRUE
+	then
+		test \( "$ept_str" = "$ept" \) -o  \( "$addr_str" = "$addr" \)
+		if test $? -eq $TRUE
+		then
+			if [ $verbose ]
+			then
+				printf "\nUrb %s Time %s " $urb_str $time_str
+				printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
+			fi
+			parse_usb_requests $line #decide parsing of line based on endpoint
+			return
+		else
+			return
+		fi
+	fi
+
+	if [ $verbose ]
+	then
+		printf "\nUrb %s Time %s " $urb_str $time_str
+		printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
+	fi
+	parse_usb_requests $line
 }
  
 # Set loop separator to end of line
