@@ -668,80 +668,117 @@ parse_usb_requests(){
 
 				usb_ctrlrequest_str[0]="$Type_str$Direction_str$Recep_str" ;;
 
-			7) usb_ctrlrequest[1]=$i
-				case $i in
-				00) usb_ctrlrequest_str[1]="GetStatus";;
-				01) usb_ctrlrequest_str[1]="ClrFeature";;
-				02) usb_ctrlrequest_str[1]="Reserved";;
-				03) usb_ctrlrequest_str[1]="SetFeature";;
-				04) usb_ctrlrequest_str[1]="Reserved";;
-				05) usb_ctrlrequest_str[1]="SetAddr";;
-				06) usb_ctrlrequest_str[1]="GetDesc";;
-				07) usb_ctrlrequest_str[1]="SetDesc";;
-				08) usb_ctrlrequest_str[1]="GetConf";;
-				09) usb_ctrlrequest_str[1]="SetConf";;
-				10) usb_ctrlrequest_str[1]="GetIntf";;
-				11) usb_ctrlrequest_str[1]="SetIntf";;
-				12) usb_ctrlrequest_str[1]="SyncFrame";;
-				*) usb_ctrlrequest_str[1]="Invalid";;
-				esac ;;
+			7) usb_ctrlrequest[1]=$i # __u8 bRequest
+				if [ $Type_str = "Std" ]
+				then
+					case $i in
+					00) usb_ctrlrequest_str[1]="GetStatus";;
+					01) usb_ctrlrequest_str[1]="ClrFeature";;
+					02) usb_ctrlrequest_str[1]="Reserved";;
+					03) usb_ctrlrequest_str[1]="SetFeature";;
+					04) usb_ctrlrequest_str[1]="Reserved";;
+					05) usb_ctrlrequest_str[1]="SetAddr";;
+					06) usb_ctrlrequest_str[1]="GetDesc";;
+					07) usb_ctrlrequest_str[1]="SetDesc";;
+					08) usb_ctrlrequest_str[1]="GetConf";;
+					09) usb_ctrlrequest_str[1]="SetConf";;
+					10) usb_ctrlrequest_str[1]="GetIntf";;
+					11) usb_ctrlrequest_str[1]="SetIntf";;
+					12) usb_ctrlrequest_str[1]="SyncFrame";;
+					*) usb_ctrlrequest_str[1]="Invalid";;
+					esac
+				fi
+
+				if [ $Type_str = "Class" ]
+				then
+					case $i in
+							#mass-storage
+					fe) usb_ctrlrequest_str[1]="GetMaxLun" ;;
+					ff) usb_ctrlrequest_str[1]="BulkReset" ;;
+					esac
+				fi
+				;;
 			8) usb_ctrlrequest[2]=$i
-				case ${usb_ctrlrequest[1]} in
-				00) ;;
-				01) case $i in
-				    0) ;; # Feature Selector - ENDPOINT_HALT
-				    1) ;; # DEVICE_REMOTE_WAKEUP
-				    2) ;; # TEST_MODE
-				    *) ;; # INVALID
-				    esac ;;
-				02) ;;
-				03) ;;
-				04) ;;
-				05) usb_ctrlrequest_str[2]="addr=$((0x${usb_ctrlrequest[2]} & 0x007F))" ;;
-				06)	desc_type=$(($((0x$i & 0xFF00)) >> 8 ))
-					desc_idx=$((0x$i & 0x00FF))
-					case $desc_type in
-					1) usb_ctrlrequest_str[2]="Dev";;
-					2) usb_ctrlrequest_str[2]="Conf";;
-					3) usb_ctrlrequest_str[2]="Str";;
-					4) usb_ctrlrequest_str[2]="Intf";;
-					5) usb_ctrlrequest_str[2]="Ept";;
-					6) usb_ctrlrequest_str[2]="DevQual";;
-					7) usb_ctrlrequest_str[2]="OtherSpeed";;
-					8) usb_ctrlrequest_str[2]="IntfPowr";;
-					*) usb_ctrlrequest_str[2]="Invalid";;
-					esac ;;
-				07) ;;
-				08) ;;
-				09) conf_num=$((0x$i & 0x00FF))
-				    usb_ctrlrequest_str[2]="config-$conf_num" ;;
-				10) ;;
-				11) ;;
-				12) ;;
-				esac ;;
-			9) usb_ctrlrequest[3]=$i
-				case ${usb_ctrlrequest[1]} in
-				00) ;;
-				01) ;;
-				02) ;;
-				03) ;;
-				04) ;;
-				05) usb_ctrlrequest_str[3]="Idx-0" ;;
-				06) desc_type=$(($((0x${usb_ctrlrequest[2]} & 0xFF00)) >> 8 ))
-					case $desc_type in
-					3)	case $i in
-						0409) usb_ctrlrequest_str[3]="Eng-US" ;;
+				if [ $Type_str = "Std" ]
+				then
+					case ${usb_ctrlrequest[1]} in
+					00) ;;
+					01) 	case $i in
+						0) ;; # Feature Selector - ENDPOINT_HALT
+						1) ;; # DEVICE_REMOTE_WAKEUP
+						2) ;; # TEST_MODE
+						*) ;; # INVALID
 						esac ;;
-					*) usb_ctrlrequest_str[3]="Idx-0"
-					esac ;;
-				07) ;;
-				08) ;;
-				09) usb_ctrlrequest_str[3]="Idx-0";;
-				10) ;;
-				11) ;;
-				12) ;;
-				esac ;;
-			10) ;;
+					02) ;;
+					03) ;;
+					04) ;;
+					05) usb_ctrlrequest_str[2]="addr=$((0x${usb_ctrlrequest[2]} & 0x007F))" ;;
+					06)	desc_type=$(($((0x$i & 0xFF00)) >> 8 ))
+						desc_idx=$((0x$i & 0x00FF))
+						case $desc_type in
+						1) usb_ctrlrequest_str[2]="Dev";;
+						2) usb_ctrlrequest_str[2]="Conf";;
+						3) usb_ctrlrequest_str[2]="Str";;
+						4) usb_ctrlrequest_str[2]="Intf";;
+						5) usb_ctrlrequest_str[2]="Ept";;
+						6) usb_ctrlrequest_str[2]="DevQual";;
+						7) usb_ctrlrequest_str[2]="OtherSpeed";;
+						8) usb_ctrlrequest_str[2]="IntfPowr";;
+						*) usb_ctrlrequest_str[2]="Invalid";;
+						esac ;;
+					07) ;;
+					08) ;;
+					09) conf_num=$((0x$i & 0x00FF))
+					    usb_ctrlrequest_str[2]="config-$conf_num" ;;
+					10) ;;
+					11) ;;
+					12) ;;
+					esac
+				fi
+
+				if [ $Type_str = "Class" ]
+				then
+					case ${usb_ctrlrequest[1]} in
+					fe) usb_ctrlrequest_str[2]="WVal-0" ;;
+					ff) usb_ctrlrequest_str[2]="WVal-0" ;;
+					esac
+				fi
+				;;
+			9) usb_ctrlrequest[3]=$i
+				if [ $Type_str = "Std" ]
+				then
+					case ${usb_ctrlrequest[1]} in
+					00) ;;
+					01) ;;
+					02) ;;
+					03) ;;
+					04) ;;
+					05) usb_ctrlrequest_str[3]="Idx-0" ;;
+					06) desc_type=$(($((0x${usb_ctrlrequest[2]} & 0xFF00)) >> 8 ))
+						case $desc_type in
+						3)	case $i in
+							0409) usb_ctrlrequest_str[3]="Eng-US" ;;
+							esac ;;
+						*) usb_ctrlrequest_str[3]="Idx-0"
+						esac ;;
+					07) ;;
+					08) ;;
+					09) usb_ctrlrequest_str[3]="Idx-0";;
+					10) ;;
+					11) ;;
+					12) ;;
+					esac
+				fi
+
+				if [ $Type_str = "Class" ]
+				then
+					case ${usb_ctrlrequest[1]} in
+					fe) usb_ctrlrequest_str[3]="Interface-$i" ;;
+					ff) usb_ctrlrequest_str[3]="Interface-$i" ;;
+					esac
+				fi
+				;;
+			10) ;; # skip hex value for wLength
 			11) usb_ctrlrequest[4]=$i #consider dacimal wLength
 			    usb_ctrlrequest_str[4]="wLen-$i" ;;
 			esac
@@ -945,7 +982,11 @@ parse_usb_requests(){
 				11) ;;
 				12) ;;
 				esac ;;
-			1) ;; #class request
+			1) #class request
+				case ${usb_ctrlrequest[1]} in
+				fe) printf "\nMaxLun $(($received_data))" ;;
+				esac
+				;;
 			2) ;;
 			3) ;;
 			*)
