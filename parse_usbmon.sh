@@ -1,75 +1,58 @@
 #!/usr/bin/env bash
 
+# NOTE - Please use only bash for now to test this script.
+# i.e. run this script only as "bash parse_usbmon.sh -f usbmonlog.txt"
+
 # accept variable arguments
 # addr => device address
 # bus => bus number
 # ept => endpoint number
 # FILE => input file to parse
 
-#	struct usb_ctrlrequest {
-#		 __u8 bRequestType;
-#		 __u8 bRequest;
-#		__le16 wValue;
-#		__le16 wIndex;
-#		__le16 wLength;
-#	} __attribute__ ((packed));
+while getopts 'a:b:e:f:vh' OPTION
+do
+	case $OPTION in
+	a) addr="$OPTARG"
+	   addr_f=1		;;
+	b) bus="$OPTARG"	;;
+	e) ept="$OPTARG"
+	   ept_f=1		;;
+	f) FILE="$OPTARG"
+	   file_f=1		;;
+	v) verbose=1		;;
+	h) printhelp=1		;;
+	*) invalid_args=1	;;
+	esac
+done
+	shift $(($OPTIND - 1))
+
+print_help () {
+	printf "\nHELP => "
+	printf "\n        Before Running this script, Please make sure you have"
+	printf "\n        debugfs mounted and usbmon logging redirected to a text file"
+	printf "\n        1. mount -t debugfs none_debugs /sys/kernel/debug"
+	printf "\n        2. modprobe usbmon [only, if module not already loaded]"
+	printf "\n        3. cat /sys/kernel/debug/usbmon/0u > ~/usbmonlog.txt"
+	printf "\n        4. connect device and do necessary operations"
+	printf "\n        5. start parsing using \"bash parse_usbmon.sh -f ~/usbmonlog.txt\""
+	printf "\n           along with -f , following _optional_ variable args are supported"
+	printf "\n           \"-e X\" parse only endpoint X [currently supported only ept 0]"
+	printf "\n           \"-a XXX\" parse only device addr XXX"
+	printf "\n           \"-v\" print URB Tag, Timestamp in microseconds, Event Type & addr"
+	printf "\n           \"-h\" print this help"
+}
 
 usb_ctrlrequest=()
 usb_ctrlrequest_str=()
 
-#	/* USB_DT_DEVICE: Device descriptor */
-#	struct usb_device_descriptor {
-#		__u8  bLength;
-#		__u8  bDescriptorType;
-#		__le16 bcdUSB;
-#		__u8  bDeviceClass;
-#		__u8  bDeviceSubClass;
-#		__u8  bDeviceProtocol;
-#		__u8  bMaxPacketSize0;
-#		__le16 idVendor;
-#		__le16 idProduct;
-#		__le16 bcdDevice;
-#		__u8  iManufacturer;
-#		__u8  iProduct;
-#		__u8  iSerialNumber;
-#		__u8  bNumConfigurations;
-#} __attribute__ ((packed));
-
 usb_device_descriptor=()
 USB_DT_DEVICE_SIZE=18
-
-#	struct usb_config_descriptor {
-#		__u8  bLength;
-#		__u8  bDescriptorType;
-#		__le16 wTotalLength;
-#		__u8  bNumInterfaces;
-#		__u8  bConfigurationValue;
-#		__u8  iConfiguration;
-#		__u8  bmAttributes;
-#		__u8  bMaxPower;
-#		} __attribute__ ((packed));
 
 usb_config_descriptor=()
 USB_DT_CONFIG_SIZE=9
 
 # SYNCF, SI,GI,SC,GC, SD,GD,SA,R, SF,R,CF,GS - Table9.4 Ch9
 std_req_flag=0x0000
-
-while getopts 'a:b:e:f:v' OPTION
-do
-	case $OPTION in
-	a) addr="$OPTARG"
-	   addr_f=1		;;
-	b) bus="$OPTARG"	;;
-	e) ept_f=1
-	   ept="$OPTARG"	;;
-	f) FILE="$OPTARG" ;;
-	v) verbose=1 ;;
-	*) printf "Usage: %s: args\n" $(basename $0) >&2
-		exit 2	;;
-	esac
-done
-	shift $(($OPTIND - 1))
 
 # Global definitions
 TRUE=0
@@ -83,9 +66,6 @@ submission_datalen=0
 iInterface_arr=() #array for saving string desc index
 InEpt_interfaceclass=()
 OutEpt_interfaceclass=() #save this endpoint belongs to which class?
-
-# NOTE - Please use only bash for now to test this script.
-# i.e. run this script only as "bash parse_usbmon.sh"
 
 #************************************************
 #  Parse Mass storage specific command and data
@@ -128,16 +108,6 @@ print_cbw_cmd0() {
 }
 
 #	/* Command Block Wrapper */
-#	struct bulk_cb_wrap {
-#		__le32  Signature;              /* Contains 'USBC' */
-#		u32     Tag;                    /* Unique per command id */
-#		__le32  DataTransferLength;     /* Size of the data */
-#		u8      Flags;                  /* Direction in bit 7 */
-#		u8      Lun;                    /* LUN (normally 0) */
-#		u8      Length;                 /* Of the CDB, <= MAX_COMMAND_SIZE */
-#		u8      CDB[16];                /* Command Data Block */
-#};
-
 parse_cbw() {
 	local cbw="$@"
 	local r=0
@@ -993,9 +963,10 @@ parse_usb_requests(){
 			*)
 			esac
 		fi
-
+:<<COMMENT
 		printf "\nreceived data with len=%s is " $datalen
 		for member in ${data_str[*]}; do printf "%s " $member;done
+COMMENT
 	printf "\n"
 	fi #endof test \( $event_str = "CBK" \)
 }
@@ -1151,21 +1122,29 @@ processLine(){
 	fi
 	parse_usb_requests $line
 }
+
+# Following logic is based upon implementation from
+# http://bash.cyberciti.biz/file-management/read-a-file-line-by-line/
  
-# Set loop separator to end of line
 BAKIFS=$IFS
 IFS=$(echo -en "\n\b")
+
 exec 3<&0
+
+test \( "$printhelp" = "1" \) -o  \( "$file_f" != "1" \) -o \( "$ept" != "0" \) -o \( "$invalid_args" = "1" \)
+if test $? -eq $TRUE
+then
+	print_help
+	printf "\n\n"
+	exit
+fi
+
 exec 0<$FILE
-	# use $line variable to process line in processLine() function
-	# lets take few lines, for initial work
 	while read line
 	do
-	# use $line variable to process line in processLine() function
 	processLine $line
 	done
 exec 0<&3
  
-# restore $IFS which was used to determine what the field separators are
 IFS=$BAKIFS
 exit 0
