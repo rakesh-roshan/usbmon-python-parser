@@ -1131,7 +1131,7 @@ IFS=$(echo -en "\n\b")
 
 exec 3<&0
 
-test \( "$printhelp" = "1" \) -o  \( "$file_f" != "1" \) -o \( "$ept" != "0" \) -o \( "$invalid_args" = "1" \)
+test \( "$printhelp" = "1" \) -o  \( "$file_f" != "1" \) -o \( "$ept" != "0" \) -a \( "$ept_f" = "1" \) -o \( "$invalid_args" = "1" \)
 if test $? -eq $TRUE
 then
 	print_help
