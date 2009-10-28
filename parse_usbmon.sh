@@ -51,6 +51,9 @@ USB_DT_DEVICE_SIZE=18
 usb_config_descriptor=()
 USB_DT_CONFIG_SIZE=9
 
+#Supported Classes
+USB_CLASS_MASS_STORAGE=08
+
 # SYNCF, SI,GI,SC,GC, SD,GD,SA,R, SF,R,CF,GS - Table9.4 Ch9
 std_req_flag=0x0000
 
@@ -114,56 +117,47 @@ parse_cbw() {
 	cbw_sign=""
 	r=1
 	printf "\nCBW => "
-	for i in $cbw
-	do
-		case $r in
-		1) cbw_sign=${i:6:2}${i:4:2}${i:2:2}${i:0:2} #restructure byte order
-		   printf "Sig %s " $cbw_sign
-		   if [ $cbw_sign != "43425355" ]
-		   then
-			printf "ErrInvalidCBW"
-			return
-		   fi
-			;;
-		2) printf "Tag %s " ${i:6:2}${i:4:2}${i:2:2}${i:0:2};;
-		3) expected_data=$((0x${i:6:2}${i:4:2}${i:2:2}${i:0:2}))
-		   printf "DataLen %s " $expected_data
-			;;
-		4) printf "Flags %s " ${i:0:2}
-		   printf "Lun %s " $((${i:2:2}))
-		   printf "CmdLen %s " $((0x${i:4:2}))
-		   cdb[0]=${i:6:2}
-		   print_cbw_cmd0 ${cdb[0]}
-			;;
-		5) cdb[1]=${i:0:2}
-		   cdb[2]=${i:2:2}
-		   cdb[3]=${i:4:2}
-		   cdb[4]=${i:6:2}
-			;;
-		6) cdb[5]=${i:0:2}
-		   cdb[6]=${i:2:2}
-		   cdb[7]=${i:4:2}
-		   cdb[8]=${i:6:2}
-			;;
-		7) cdb[9]=${i:0:2}
-		   cdb[10]=${i:2:2}
-		   cdb[11]=${i:4:2}
-		   cdb[12]=${i:6:2}
-			;;
-		8) cdb[13]=${i:0:2}
-		   cdb[14]=${i:2:2}
-		   cdb[15]=${i:4:2}
-			;;
-		*) break ;;
-		esac
-		r=`expr $r + 1`
-	done
+
+	cbw_sign=${cbw:6:2}${cbw:4:2}${cbw:2:2}${cbw:0:2} #restructure byte order
+	printf "Sig %s " $cbw_sign
+	if [ $cbw_sign != "43425355" ]
+	then
+		printf "ErrInvalidCBW"
+		return
+	fi
+	cbw=${cbw:9} #include space
+
+	printf "Tag %s " ${cbw:6:2}${cbw:4:2}${cbw:2:2}${cbw:0:2}
+	cbw=${cbw:9} #include space
+
+	expected_data=$((0x${cbw:6:2}${cbw:4:2}${cbw:2:2}${cbw:0:2}))
+	printf "DataLen %s " $expected_data
+	cbw=${cbw:9} #include space
+
+	printf "Flags %s " ${cbw:0:2}
+	printf "Lun %s " $((${cbw:2:2}))
+	printf "CmdLen %s " $((0x${cbw:4:2}))
+	cdb[0]=${cbw:6:2}
+	print_cbw_cmd0 ${cdb[0]}
+	cbw=${cbw:9} #include space
+
+	cdb[1]=${cbw:0:2} cdb[2]=${cbw:2:2} cdb[3]=${cbw:4:2} cdb[4]=${cbw:6:2}
+	cbw=${cbw:9} #include space
+
+	cdb[5]=${cbw:0:2} cdb[6]=${cbw:2:2} cdb[7]=${cbw:4:2} cdb[8]=${cbw:6:2}
+	cbw=${cbw:9} #include space
+
+	cdb[9]=${cbw:0:2} cdb[10]=${cbw:2:2} cdb[11]=${cbw:4:2} cdb[12]=${cbw:6:2}
+	cbw=${cbw:9} #include space
+
+	cdb[13]=${cbw:0:2} cdb[14]=${cbw:2:2} cdb[15]=${cbw:4:2}
+
 	printf "%s %s %s %s %s %s %s " ${cdb[1]} ${cdb[2]} ${cdb[3]} ${cdb[4]} ${cdb[5]} ${cdb[6]} ${cdb[7]}
 	printf "%s %s %s %s %s %s %s %s" ${cdb[8]} ${cdb[9]} ${cdb[10]} ${cdb[11]} ${cdb[12]} ${cdb[13]} ${cdb[14]} ${cdb[15]}
 }
 
-parse_bulkindata() {
-	local bulk_in_data="$@"
+mass_storage_bulkindata() {
+	local blkin="$@"
 	local r=0 char=0
 
 	printf "\nData => "
@@ -172,58 +166,52 @@ parse_bulkindata() {
 	test \( ${cdb[0]} = "12" \) -a \( $bulkin_sub_datalen = "36" \)
 	if test $? -eq $TRUE
 	then
-		r=1
-		for i in $bulk_in_data
+		printf "PDT %s " ${blkin:0:2}
+		printf "RMB %s " ${blkin:2:2}
+		printf "ANSI_3 %s " ${blkin:4:2}
+		printf "RDF_4 %s " ${blkin:6:2}
+		blkin=${blkin:9}
+
+		printf "ALEN %s " $((0x${i:0:2}))
+		blkin=${blkin:9}
+
+		printf "Vendor "
+		for ((r=0; r<9; r++)) #continue if space
 		do
-			case $r in
-			1) printf "PDT %s " ${i:0:2}
-			   printf "RMB %s " ${i:2:2}
-			   printf "ANSI_3 %s " ${i:4:2}
-			   printf "RDF_4 %s " ${i:6:2}
-				;;
-			2) printf "ALEN %s " $((0x${i:0:2}))
-				;;
-			3) printf "Vendor "
-			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char))) #decimal to ascii
-			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
-				;;
-			4) char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
-			   printf " " #space
-				;;
-			5) printf "Product "
-			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
-				;;
-			6)
-			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
-				;;
-			7)
-			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
-				;;
-			8)
-			   char=${i:0:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:2:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:4:2}; printf \\$(printf '%03o' $((0x$char)))
-			   char=${i:6:2}; printf \\$(printf '%03o' $((0x$char)))
-				;;
-			9) #TODO print revision
-				;;
-			esac
-		r=`expr $r + 1`
+			char=${blkin:0:1}
+			if [ "$char" = " " ]
+			then
+				blkin=${blkin:1}
+				continue
+			fi
+			char=${blkin:0:2}
+			blkin=${blkin:2}
+			printf \\$(printf '%03o' $((0x$char))) #decimal to ascii
 		done
+
+		blkin=${blkin:1} #skip space
+
+		printf " Product "
+		for ((r=0; r<19; r++)) #continue if space
+		do
+			char=${blkin:0:1}
+			if [ "$char" = " " ]
+			then
+				blkin=${blkin:1}
+				continue
+			else
+				if [ "$char" = "" ] #unexpected EOL
+				then
+					return
+				fi
+			fi
+			char=${blkin:0:2}
+			blkin=${blkin:2}
+			printf \\$(printf '%03o' $((0x$char))) #decimal to ascii
+		done
+
+		# blkin=${blkin:1} #skip space
+		# TODO print revision
 		return #done, now return from function
 	fi
 
@@ -232,7 +220,7 @@ parse_bulkindata() {
 	if test $? -eq $TRUE
 	then
 		r=1
-		for i in $bulk_in_data
+		for i in $blkin
 		do
 			case $r in
 			1) lastblkaddr=$((0x$i))
@@ -248,7 +236,7 @@ parse_bulkindata() {
 		return
 	fi
 
-	printf "$bulk_in_data"
+	printf "$blkin"
 }
 
 parse_csw() {
@@ -311,13 +299,13 @@ parse_bulk_in() {
 #**************************************************************************************
 #	Interface class - Mass storage Subclass- ??
 #**************************************************************************************
-	test \( $event_str = "SUB" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "08" \)
+	test \( $event_str = "SUB" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
 	if test $? -eq $TRUE
 	then
 		bulkin_sub_datalen=`expr $bulkin_sub_datalen + $datalen`
 	fi
 
-	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "08" \)
+	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
 	if test $? -eq $TRUE
 	then
 		bulk_in=${bulk_in:2} # skip 2 characters '=' and space
@@ -325,7 +313,7 @@ parse_bulk_in() {
 		then
 			if [ $bulkin_sub_datalen -eq $expected_data ] #check if submission and callback datalen is same
 			then
-				parse_bulkindata $bulk_in
+				mass_storage_bulkindata $bulk_in
 				if [ $bulkin_sub_datalen -gt 32 ]
 				then
 					printf " snip..."
@@ -379,7 +367,7 @@ parse_bulk_out() {
 #**************************************************************************************
 #	Interface class - Mass storage Subclass- ??
 #**************************************************************************************
-	test \( $event_str = "SUB" \) -a \( ${OutEpt_interfaceclass[$ept_num]} = "08" \)
+	test \( $event_str = "SUB" \) -a \( ${OutEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
 	if test $? -eq $TRUE
 	then
 		bulk_out=${bulk_out:2} # skip 2 characters '=' and space
@@ -387,7 +375,7 @@ parse_bulk_out() {
 		bulk_out_submission=$bulk_out # save and process only if we are sure callback has same datalen
 	fi
 
-	test \( $event_str = "CBK" \) -a \( ${OutEpt_interfaceclass[$ept_num]} = "08" \)
+	test \( $event_str = "CBK" \) -a \( ${OutEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
 	if test $? -eq $TRUE
 	then
 		if [ $submission_datalen -eq $datalen ] #check if submission and callback datalen is same
