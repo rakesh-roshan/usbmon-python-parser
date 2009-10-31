@@ -399,26 +399,8 @@ parse_config_desc() {
 	local endpoint=0 num_endpoints=0
 	local interface_class=0 temp_ept_num=0 bEptAddr=0 ept_direction=0
 
-	i=1
-	while [ $i -le "$datalen" ]
-	do
-		temp=${temp_config_desc:0:1}
-		if [ "$temp" = " " ]
-		then
-			temp_config_desc=${temp_config_desc:1}
-			continue
-		fi
-
-		if [ "$temp" = "" ]
-		then
-			datalen=`expr $i - 1` #update newdata length to only actual received data 
-			break #exit from loop if we detectedunexpected end of line
-		fi
-		temp=${temp_config_desc:0:2}
-		temp_config_desc=${temp_config_desc:2}
-		config_desc=$config_desc$temp #concatanate every byte after removing space
-		i=`expr $i + 1`
-	done
+	config_desc=`echo $temp_config_desc | sed 's/ //g'` #remove space's from string
+	datalen=`expr ${#config_desc} / 2` #update newdata length to only actual received data
 
 	i=1
 	while [ $i -le "$datalen" ]
@@ -570,17 +552,9 @@ parse_usb_requests(){
 	local equal_pos=0 received_data=0 data_start=0
 	local datastr=0 wtotallen=0 char=0
 
-	test \( "$type_dir" = "Bi" \)
-	if test $? -eq $TRUE
-	then
-		parse_bulk_in $req_line
-	fi
+	[[ "$type_dir" = "Bi" ]] && parse_bulk_in $req_line
 
-	test \( "$type_dir" = "Bo" \)
-	if test $? -eq $TRUE
-	then
-		parse_bulk_out $req_line
-	fi
+	[[ "$type_dir" = "Bo" ]] && parse_bulk_out $req_line
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -766,12 +740,6 @@ parse_usb_requests(){
 		IFS=$(echo -en " ")
 		for i in $req_line
 		do
-			test \( "$i" = "0" \) -a \( $m = 5 \)
-			if test $? -eq $TRUE
-			then
-				arg5=0 #i think I should exit if this is not 0 with error and skip any parsing
-			fi
-
 			if [ "$m" == "6" ]
 			then
 				if [ "$i" == "0" ]
