@@ -62,6 +62,7 @@ yes=1
 INVALID=-1
 save_iinterface=-1
 submission_datalen=0
+data_printed=0; curr_event=$INVALID; prev_event=$INVALID
 
 iInterface_arr=() #array for saving string desc index
 InEpt_interfaceclass=()
@@ -155,6 +156,7 @@ mass_storage_bulkindata() {
 	local blkin="$@"
 	local r=0 char=0
 
+	data_printed=1
 	printf "\nData => "
 
 	# Inquiry Reference http://en.wikipedia.org/wiki/SCSI_Inquiry_Command
@@ -294,6 +296,7 @@ parse_bulk_in() {
 	test \( $event_str = "SUB" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
 	if test $? -eq $TRUE
 	then
+		data_printed=0
 		bulkin_sub_datalen=`expr $bulkin_sub_datalen + $datalen`
 	fi
 
@@ -863,6 +866,7 @@ parse_address(){
 	# Restore seperator as space for further line processing
 	IFS=$(echo -en " ")
 }
+
 processLine(){
 	line="$@" # get all args
 #	echo $line
@@ -871,6 +875,7 @@ processLine(){
 
 	# parse line "f667e680 1127762832 C Ii:1:001:1 0:2048 2 = 2000"
 	# according to spaces
+	prev_event=$curr_event
 
 	OIFS=$IFS
 	IFS=$(echo -en " ")
@@ -885,7 +890,11 @@ processLine(){
 		C) event_str="CBK " ;;
 		S) event_str="SUB " ;;
 		E) event_str="ERR "
-		esac ;;
+		esac
+		curr_event=$event_str #below logic, doesnt process any same event lines onces,
+					#data is printed, implented to save parsing time.
+		[[ "$curr_event" = "$prev_event" ]] && [[ $data_printed = "1" ]] && return
+		;;
 	4) parse_address $i ;;
 	5) #process status feild
 		test \( "$ept_num" = "0" \) -a  \( "$event_type" = "S" \)
