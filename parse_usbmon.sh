@@ -46,10 +46,7 @@ usb_ctrlrequest=()
 usb_ctrlrequest_str=()
 
 usb_device_descriptor=()
-USB_DT_DEVICE_SIZE=18
-
 usb_config_descriptor=()
-USB_DT_CONFIG_SIZE=9
 
 #Supported Classes
 USB_CLASS_MASS_STORAGE=08
@@ -134,9 +131,7 @@ parse_cbw() {
 	printf "DataLen %s " $expected_data
 	cbw=${cbw:9} #include space
 
-	printf "Flags %s " ${cbw:0:2}
-	printf "Lun %s " $((${cbw:2:2}))
-	printf "CmdLen %s " $((0x${cbw:4:2}))
+	printf "Flags %s Lun %s CmdLen %s " ${cbw:0:2} $((${cbw:2:2})) $((0x${cbw:4:2}))
 	cdb[0]=${cbw:6:2}
 	print_cbw_cmd0 ${cdb[0]}
 	cbw=${cbw:9} #include space
@@ -166,13 +161,10 @@ mass_storage_bulkindata() {
 	test \( ${cdb[0]} = "12" \) -a \( $bulkin_sub_datalen = "36" \)
 	if test $? -eq $TRUE
 	then
-		printf "PDT %s " ${blkin:0:2}
-		printf "RMB %s " ${blkin:2:2}
-		printf "ANSI_3 %s " ${blkin:4:2}
-		printf "RDF_4 %s " ${blkin:6:2}
+		printf "PDT %s RMB %s ANSI_3 %s RDF_4 %s " ${blkin:0:2} ${blkin:2:2} ${blkin:4:2} ${blkin:6:2}
 		blkin=${blkin:9}
 
-		printf "ALEN %s " $((0x${i:0:2}))
+		printf "ALEN %s " $((0x${bulkin:0:2}))
 		blkin=${blkin:9}
 
 		printf "Vendor "
@@ -398,6 +390,8 @@ parse_config_desc() {
 	local temp=0 i=0 d_len=0 d_type=0
 	local endpoint=0 num_endpoints=0
 	local interface_class=0 temp_ept_num=0 bEptAddr=0 ept_direction=0
+	local intrf_desc=()
+	local ept_desc=()
 
 	config_desc=`echo $temp_config_desc | sed 's/ //g'` #remove space's from string
 	datalen=`expr ${#config_desc} / 2` #update newdata length to only actual received data
@@ -411,30 +405,16 @@ parse_config_desc() {
 		2) printf "\nConfig Desc => "
 
 			usb_config_descriptor[0]=$((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			usb_config_descriptor[1]=$((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			msb=${config_desc:0:2}
-			lsb=${config_desc:2:2}
+			usb_config_descriptor[1]=$((0x${config_desc:2:2}))
+			msb=${config_desc:4:2}
+			lsb=${config_desc:6:2}
 			usb_config_descriptor[2]=$((0x$lsb$msb))
-			config_desc=${config_desc:4}
-
-			usb_config_descriptor[3]=$((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			usb_config_descriptor[4]=$((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			usb_config_descriptor[5]=$((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			usb_config_descriptor[6]=$((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			usb_config_descriptor[7]=$((0x${config_desc:0:2}))
-			config_desc=${config_desc:2} #remove last byte from datastring
+			usb_config_descriptor[3]=$((0x${config_desc:8:2}))
+			usb_config_descriptor[4]=$((0x${config_desc:10:2}))
+			usb_config_descriptor[5]=$((0x${config_desc:12:2}))
+			usb_config_descriptor[6]=$((0x${config_desc:14:2}))
+			usb_config_descriptor[7]=$((0x${config_desc:16:2}))
+			config_desc=${config_desc:18} #remove config desc for next processing
 												   #but allow if data is only _conf_ desc
 			test \( $d_len -ne 9 \) -o \( $datalen -ne ${usb_config_descriptor[2]} \) -a \( $datalen -gt 9 \)
 			if test $? -eq $TRUE
@@ -443,14 +423,10 @@ parse_config_desc() {
 				return
 			fi
 
-			printf " bLen %s " ${usb_config_descriptor[0]}
-			printf "bDescType %s " ${usb_config_descriptor[1]}
-			printf "wTotalLen %s " ${usb_config_descriptor[2]}
-			printf "bNumInterfaces %s " ${usb_config_descriptor[3]}
-			printf "bConfVal %s " ${usb_config_descriptor[4]}
-			printf "iConf %s " ${usb_config_descriptor[5]}
-			printf "bmAttr %s " ${usb_config_descriptor[6]}
-			printf "bMaxPower %s " ${usb_config_descriptor[7]}
+			printf " bLen %s bDescType %s " ${usb_config_descriptor[0]} ${usb_config_descriptor[1]}
+			printf "wTotalLen %s bNumInterfaces %s " ${usb_config_descriptor[2]} ${usb_config_descriptor[3]}
+			printf "bConfVal %s iConf %s " ${usb_config_descriptor[4]} ${usb_config_descriptor[5]}
+			printf "bmAttr %s bMaxPower %s " ${usb_config_descriptor[6]} ${usb_config_descriptor[7]}
 			i=`expr $i + 9`
 			;;
 		4) printf "\nInterface Desc => "
@@ -461,37 +437,24 @@ parse_config_desc() {
 				printf "INTERFACE_DESC ERR\n"
 				return
 			fi
-
-			printf "bLen %s " $((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			printf "bDescType %s " $((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			printf "bINum %s " $((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			printf "bAltSetting %s " $((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			num_endpoints=$((0x${config_desc:0:2}))
-			printf "bNumEpt %s " $num_endpoints
-			config_desc=${config_desc:2}
-
-			interface_class=${config_desc:0:2}
-			printf "bIClass %s " $interface_class
-			config_desc=${config_desc:2}
-
-			printf "bISubClass %s " $((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			printf "bIProto %s " $((0x${config_desc:0:2}))
-			config_desc=${config_desc:2}
-
-			save_iinterface=$((0x${config_desc:0:2}))
+			intrf_desc[0]=$((0x${config_desc:0:2}))
+			intrf_desc[1]=$((0x${config_desc:2:2}))
+			intrf_desc[2]=$((0x${config_desc:4:2}))
+			intrf_desc[3]=$((0x${config_desc:6:2}))
+			num_endpoints=$((0x${config_desc:8:2}))
+			intrf_desc[4]=$num_endpoints
+			interface_class=${config_desc:10:2}
+			intrf_desc[5]=$interface_class
+			intrf_desc[6]=$((0x${config_desc:12:2}))
+			intrf_desc[7]=$((0x${config_desc:14:2}))
+			save_iinterface=$((0x${config_desc:16:2}))
 			iInterface_arr[$save_iinterface]=$save_iinterface
-			printf "iInterface %s " $save_iinterface
-			config_desc=${config_desc:2}
+			intrf_desc[8]=$save_iinterface
+			config_desc=${config_desc:18}
+
+			printf "bLen %s bDescType %s bINum %s " ${intrf_desc[0]} ${intrf_desc[1]} ${intrf_desc[2]}
+			printf "bAltSetting %s bNumEpt %s bIClass %s " ${intrf_desc[3]} ${intrf_desc[4]} ${intrf_desc[5]}
+			printf "bISubClass %s bIProto %s iInterface %s " ${intrf_desc[6]} ${intrf_desc[7]} ${intrf_desc[8]}
 
 			i=`expr $i + 9`
 
@@ -506,14 +469,11 @@ parse_config_desc() {
 					return
 				fi
 
-				printf "bLen %s " $((0x${config_desc:0:2}))
-				config_desc=${config_desc:2}
+				ept_desc[0]=$((0x${config_desc:0:2}))
+				ept_desc[1]=$((0x${config_desc:2:2}))
 
-				printf "bDescType %s " $((0x${config_desc:0:2}))
-				config_desc=${config_desc:2}
-
-				bEptAddr=${config_desc:0:2} #no decimal conversion necessary
-				printf "bEptAddr %s " $bEptAddr
+				bEptAddr=${config_desc:4:2} #no decimal conversion necessary
+				ept_desc[2]=$bEptAddr
 				temp_ept_num=$((0x$bEptAddr & 0x0F))
 				ept_direction=$(($((0x$bEptAddr & 0x80)) >> 7))
 				if [ $ept_direction = "1" ]
@@ -522,18 +482,16 @@ parse_config_desc() {
 				else
 					OutEpt_interfaceclass[$temp_ept_num]=$interface_class
 				fi
-				config_desc=${config_desc:2}
 
-				printf "bmAttr %s " $((0x${config_desc:0:2}))
-				config_desc=${config_desc:2}
+				ept_desc[3]=$((0x${config_desc:6:2}))
+				msb=${config_desc:8:2}
+				lsb=${config_desc:10:2}
+				ept_desc[4]=$((0x$lsb$msb))
+				ept_desc[5]=$((0x${config_desc:12:2}))
+				config_desc=${config_desc:14}
 
-				msb=${config_desc:0:2}
-				lsb=${config_desc:2:2}
-				printf "wMaxPktSize %s " $((0x$lsb$msb))
-				config_desc=${config_desc:4}
-
-				printf "bInterval %s " $((0x${config_desc:0:2}))
-				config_desc=${config_desc:2}
+				printf "bLen %s bDescType %s bEptAddr %s " ${ept_desc[0]} ${ept_desc[1]} ${ept_desc[2]}
+				printf "bmAttr %s wMaxPktSize %s bInterval %s " ${ept_desc[3]} ${ept_desc[4]} ${ept_desc[5]}
 
 				i=`expr $i + 7`
 			done
@@ -717,24 +675,18 @@ parse_usb_requests(){
 		l=`expr $l + 1`
 		done
 
-	printf "\nbReqType=%s " ${usb_ctrlrequest[0]}
-	printf "bReq=%s " ${usb_ctrlrequest[1]}
-	printf "wVal=%s " ${usb_ctrlrequest[2]}
-	printf "wIdx=%s " ${usb_ctrlrequest[3]}
-	printf "wLen=%s" ${usb_ctrlrequest[4]}
+	printf "\nbReqType=%s bReq=%s wVal=%s " ${usb_ctrlrequest[0]} ${usb_ctrlrequest[1]} ${usb_ctrlrequest[2]}
+	printf "wIdx=%s wLen=%s" ${usb_ctrlrequest[3]} ${usb_ctrlrequest[4]}
 
-	printf "\n%s " ${usb_ctrlrequest_str[0]}
-	printf "%s " ${usb_ctrlrequest_str[1]}
-	printf "%s " ${usb_ctrlrequest_str[2]}
-	printf "%s " ${usb_ctrlrequest_str[3]}
-	printf "%s" ${usb_ctrlrequest_str[4]}
+	printf "\n%s %s %s " ${usb_ctrlrequest_str[0]} ${usb_ctrlrequest_str[1]} ${usb_ctrlrequest_str[2]}
+	printf "%s %s" ${usb_ctrlrequest_str[3]} ${usb_ctrlrequest_str[4]}
 
 	fi #endof test \( $event_str = "SUB" \)
 
 	test \( $event_str = "CBK" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
 	then
-		m=1 p=0
+		m=1
 		OIFS=$IFS
 		IFS=$(echo -en " ")
 		for i in $req_line
@@ -887,10 +839,6 @@ parse_usb_requests(){
 			*)
 			esac
 		fi
-:<<COMMENT
-		printf "\nreceived data with len=%s is " $datalen
-		for member in ${data_str[*]}; do printf "%s " $member;done
-COMMENT
 	printf "\n"
 	fi #endof test \( $event_str = "CBK" \)
 }
