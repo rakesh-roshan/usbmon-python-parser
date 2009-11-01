@@ -387,7 +387,7 @@ parse_bulk_out() {
 parse_config_desc() {
 	local temp_config_desc="$@"
 	local config_desc=""
-	local temp=0 i=0 d_len=0 d_type=0
+	local temp=0 i=0 d_len=0 d_type=0 datalen=0
 	local endpoint=0 num_endpoints=0
 	local interface_class=0 temp_ept_num=0 bEptAddr=0 ept_direction=0
 	local intrf_desc=()
@@ -500,10 +500,10 @@ parse_config_desc() {
 	done
 }
 
+ep0_datalen=0 data_available=$INVALID
 parse_usb_requests(){
 	local req_line="$@" # get all args
 	local temp_interface_desc=() temp_endpoint_desc=()
-	local datalen=0 data_available=$INVALID
 	local Direction=0 Type=0 Recep=0
 	local msb=0 lsb=0
 	local equal_pos=0 received_data=0 data_start=0
@@ -686,26 +686,6 @@ parse_usb_requests(){
 	test \( $event_str = "CBK" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
 	then
-		m=1
-		OIFS=$IFS
-		IFS=$(echo -en " ")
-		for i in $req_line
-		do
-			if [ "$m" == "6" ]
-			then
-				if [ "$i" == "0" ]
-				then
-					data_available=$no
-					printf "\n" # print \n for proper formatting of printing
-					return 0
-				else
-					datalen=$i
-					data_available=$yes
-					break
-				fi
-			fi
-			m=`expr $m + 1`
-		done
 
 		if [ "$data_available" == "$yes" ]
 		then
@@ -787,7 +767,7 @@ parse_usb_requests(){
 					   esac
 
 					   received_data=${received_data:4} #TODO - skipped first 2 bytes ( bLength & bDescriptorType )
-					   while [ $i -le `expr $datalen - 2` ]
+					   while [ $i -le `expr $ep0_datalen - 2` ]
 					   do
 						char=${received_data:0:1}
 						if [ "$char" = " " ]
@@ -838,6 +818,9 @@ parse_usb_requests(){
 			3) ;;
 			*)
 			esac
+		else #no data available
+			printf "\n" # print \n for proper formatting of printing
+			return 0
 		fi
 	printf "\n"
 	fi #endof test \( $event_str = "CBK" \)
@@ -944,6 +927,20 @@ processLine(){
 		fi
 
 		# This field makes no sense for submissions & non control endpoints, just skip
+		;;
+	6)
+		test \( $event_str = "CBK" \) -a \( "$ept_str" = "0" \)
+		if test $? -eq $TRUE
+		then
+			if [ "$i" == "0" ]
+			then
+				data_available=$no
+			else
+				ep0_datalen=$i
+				data_available=$yes
+			fi
+			break
+		fi
 		;;
 	*) break ;; #we are done with for loop now break
 	esac
