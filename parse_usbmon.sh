@@ -230,6 +230,65 @@ mass_storage_bulkindata() {
 		return
 	fi
 
+	# http://en.wikipedia.org/wiki/SCSI_Request_Sense_Command
+	test \( ${cdb[0]} = "03" \) -a \( $bulkin_sub_datalen = "18" \)
+	if test $? -eq $TRUE
+	then
+		sen_resp=""
+		r=1
+		for i in $blkin
+		do
+			case $r in
+				#Recep=$((0x$i & 0x1F))
+			1)	temp=$(($((0x$i >> 31)) & 0x1))
+				case $temp in
+				1) sen_resp="SC" ;; #sense data are SCSI compliant
+				0) sen_resp="NSC" ;; #sense data are Not SCSI compliant
+				esac
+
+				temp=$(printf "%x" $((0x$i >> 24 & 0x70))) #decimal to hex
+				case $temp in
+				70) sen_resp="$sen_resp CEFF";;
+				71) sen_resp="$sen_resp DEFF";;
+				72) sen_resp="$sen_resp CEDF";;
+				73) sen_resp="$sen_resp DEDF";;
+				esac
+
+				sen_resp="$sen_resp SKey"
+				skey=$(printf "%x" $(($((0x$i & 0x00000F00)) >> 8)))
+				case $skey in
+				0) sen_resp="$sen_resp NoSen" ;;
+				1) sen_resp="$sen_resp RecErr" ;;
+				2) sen_resp="$sen_resp NotRdy" ;;
+				3) sen_resp="$sen_resp MedErr" ;;
+				4) sen_resp="$sen_resp HwErr" ;;
+				5) sen_resp="$sen_resp IllReq" ;;
+				6) sen_resp="$sen_resp UnitAtt" ;;
+				7) sen_resp="$sen_resp Data[R/W]Prot" ;;
+				9) sen_resp="$sen_resp FwErr" ;;
+				b) sen_resp="$sen_resp AbortCmd" ;;
+				c) sen_resp="$sen_resp Equal" ;;
+				d) sen_resp="$sen_resp VolOverflow" ;;
+				e) sen_resp="$sen_resp Miscomp" ;;
+				esac
+				;;
+			2)
+				;;
+			3)
+				;;
+			4) # refer http://www.t10.org/lists/asc-alph.htm for ASC and ASCQ
+				asc=${i:0:2}; sen_resp="$sen_resp Asc $asc"
+				ascq=${i:2:2}; sen_resp="$sen_resp AscQ $ascq"
+				;;
+			5)
+				;;
+			esac
+			r=`expr $r + 1`
+		done
+		printf "$sen_resp"
+		return
+	fi
+
 	printf "$blkin"
 }
 
