@@ -462,9 +462,9 @@ parse_config_desc() {
 	while [ $i -le "$datalen" ]
 	do
 		d_len=$((0x${config_desc:0:2}))
-		d_type=$((0x${config_desc:2:2}))
+		d_type=${config_desc:2:2}
 		case $d_type in
-		2) printf "\nConfig Desc => "
+		02) printf "\nConfig Desc => "
 
 			usb_config_descriptor[0]=$((0x${config_desc:0:2}))
 			usb_config_descriptor[1]=$((0x${config_desc:2:2}))
@@ -491,7 +491,8 @@ parse_config_desc() {
 			printf "bmAttr %s bMaxPower %s " ${usb_config_descriptor[6]} ${usb_config_descriptor[7]}
 			i=`expr $i + 9`
 			;;
-		4) printf "\nInterface Desc => "
+
+		04) printf "\nInterface Desc => "
 
 			test \( $d_len -ne 9 \)
 			if test $? -eq $TRUE
@@ -519,44 +520,42 @@ parse_config_desc() {
 			printf "bISubClass %s bIProto %s iInterface %s " ${intrf_desc[6]} ${intrf_desc[7]} ${intrf_desc[8]}
 
 			i=`expr $i + 9`
+			;;
 
-			for (( endpoint=0; endpoint < $num_endpoints; endpoint++ ))
-			do
-				printf "\nEpt Desc $endpoint => "
+		05) printf "\nEpt Desc => "
 
-				test \( $((0x${config_desc:0:2})) -ne 7 \)
-				if test $? -eq $TRUE
-				then
-					printf "ENDPOINT_DESC ERR\n"
-					return
-				fi
+			test \( $((0x${config_desc:0:2})) -ne 7 \)
+			if test $? -eq $TRUE
+			then
+				printf "ENDPOINT_DESC ERR\n"
+				return
+			fi
 
-				ept_desc[0]=$((0x${config_desc:0:2}))
-				ept_desc[1]=$((0x${config_desc:2:2}))
+			ept_desc[0]=$((0x${config_desc:0:2}))
+			ept_desc[1]=$((0x${config_desc:2:2}))
 
-				bEptAddr=${config_desc:4:2} #no decimal conversion necessary
-				ept_desc[2]=$bEptAddr
-				temp_ept_num=$((0x$bEptAddr & 0x0F))
-				ept_direction=$(($((0x$bEptAddr & 0x80)) >> 7))
-				if [ $ept_direction = "1" ]
-				then
-					InEpt_interfaceclass[$temp_ept_num]=$interface_class
-				else
-					OutEpt_interfaceclass[$temp_ept_num]=$interface_class
-				fi
+			bEptAddr=${config_desc:4:2} #no decimal conversion necessary
+			ept_desc[2]=$bEptAddr
+			temp_ept_num=$((0x$bEptAddr & 0x0F))
+			ept_direction=$(($((0x$bEptAddr & 0x80)) >> 7))
+			if [ $ept_direction = "1" ]
+			then
+				InEpt_interfaceclass[$temp_ept_num]=$interface_class
+			else
+				OutEpt_interfaceclass[$temp_ept_num]=$interface_class
+			fi
 
-				ept_desc[3]=$((0x${config_desc:6:2}))
-				msb=${config_desc:8:2}
-				lsb=${config_desc:10:2}
-				ept_desc[4]=$((0x$lsb$msb))
-				ept_desc[5]=$((0x${config_desc:12:2}))
-				config_desc=${config_desc:14}
+			ept_desc[3]=$((0x${config_desc:6:2}))
+			msb=${config_desc:8:2}
+			lsb=${config_desc:10:2}
+			ept_desc[4]=$((0x$lsb$msb))
+			ept_desc[5]=$((0x${config_desc:12:2}))
+			config_desc=${config_desc:14}
 
-				printf "bLen %s bDescType %s bEptAddr %s " ${ept_desc[0]} ${ept_desc[1]} ${ept_desc[2]}
-				printf "bmAttr %s wMaxPktSize %s bInterval %s " ${ept_desc[3]} ${ept_desc[4]} ${ept_desc[5]}
+			printf "bLen %s bDescType %s bEptAddr %s " ${ept_desc[0]} ${ept_desc[1]} ${ept_desc[2]}
+			printf "bmAttr %s wMaxPktSize %s bInterval %s " ${ept_desc[3]} ${ept_desc[4]} ${ept_desc[5]}
 
-				i=`expr $i + 7`
-			done
+			i=`expr $i + 7`
 			;;
 		esac
 	done
