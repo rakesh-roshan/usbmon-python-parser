@@ -51,6 +51,20 @@ usb_config_descriptor=()
 #Supported Classes
 USB_CLASS_MASS_STORAGE=08
 
+# Standard Descriptor Types
+DT_CONFIG=02
+DT_INTERFACE=04
+DT_ENDPOINT=05
+
+# Class Descriptors
+DT_CS_INTERFACE=24
+
+# CDC Class [include/linux/usb/cdc.h]
+CDC_HEADER_TYPE=00
+CDC_CALL_MANAGEMENT_TYPE=01
+CDC_ACM_TYPE=02
+CDC_UNION_TYPE=06
+
 # SYNCF, SI,GI,SC,GC, SD,GD,SA,R, SF,R,CF,GS - Table9.4 Ch9
 std_req_flag=0x0000
 
@@ -449,8 +463,8 @@ parse_bulk_out() {
 parse_config_desc() {
 	local temp_config_desc="$@"
 	local config_desc=""
-	local temp=0 i=0 d_len=0 d_type=0 datalen=0
-	local endpoint=0 num_endpoints=0
+	local temp=0 i=0 d_len=0 d_type=0 datalen=0 desc_subtype=0
+	local endpoint=0 num_endpoints=0 skip_bytes=0
 	local interface_class=0 temp_ept_num=0 bEptAddr=0 ept_direction=0
 	local intrf_desc=()
 	local ept_desc=()
@@ -464,7 +478,8 @@ parse_config_desc() {
 		d_len=$((0x${config_desc:0:2}))
 		d_type=${config_desc:2:2}
 		case $d_type in
-		02) printf "\nConfig Desc => "
+		$DT_CONFIG)
+			printf "\nConfig Desc => "
 
 			usb_config_descriptor[0]=$((0x${config_desc:0:2}))
 			usb_config_descriptor[1]=$((0x${config_desc:2:2}))
@@ -474,9 +489,8 @@ parse_config_desc() {
 			usb_config_descriptor[3]=$((0x${config_desc:8:2}))
 			usb_config_descriptor[4]=$((0x${config_desc:10:2}))
 			usb_config_descriptor[5]=$((0x${config_desc:12:2}))
-			usb_config_descriptor[6]=$((0x${config_desc:14:2}))
+			usb_config_descriptor[6]=${config_desc:14:2}
 			usb_config_descriptor[7]=$((0x${config_desc:16:2}))
-			config_desc=${config_desc:18} #remove config desc for next processing
 												   #but allow if data is only _conf_ desc
 			test \( $d_len -ne 9 \) -o \( $datalen -ne ${usb_config_descriptor[2]} \) -a \( $datalen -gt 9 \)
 			if test $? -eq $TRUE
@@ -485,14 +499,14 @@ parse_config_desc() {
 				return
 			fi
 
-			printf " bLen %s bDescType %s " ${usb_config_descriptor[0]} ${usb_config_descriptor[1]}
-			printf "wTotalLen %s bNumInterfaces %s " ${usb_config_descriptor[2]} ${usb_config_descriptor[3]}
-			printf "bConfVal %s iConf %s " ${usb_config_descriptor[4]} ${usb_config_descriptor[5]}
-			printf "bmAttr %s bMaxPower %s " ${usb_config_descriptor[6]} ${usb_config_descriptor[7]}
-			i=`expr $i + 9`
+			printf "  bLen %-2s bDesc %-3s " ${usb_config_descriptor[0]} ${usb_config_descriptor[1]}
+			printf "%-9s %-3s %-9s %-3s " "wTotalLen" ${usb_config_descriptor[2]} "bNumIntf" ${usb_config_descriptor[3]}
+			printf "%-9s %-4s %-7s %-3s " "bConfVal" ${usb_config_descriptor[4]} "iConf" ${usb_config_descriptor[5]}
+			printf "%-8s %-3s %-9s %-4s" "bmAttr" ${usb_config_descriptor[6]} "bMaxPower" ${usb_config_descriptor[7]}
 			;;
 
-		04) printf "\nInterface Desc => "
+		$DT_INTERFACE)
+			printf "\nInterf Desc => "
 
 			test \( $d_len -ne 9 \)
 			if test $? -eq $TRUE
@@ -513,18 +527,16 @@ parse_config_desc() {
 			save_iinterface=$((0x${config_desc:16:2}))
 			iInterface_arr[$save_iinterface]=$save_iinterface
 			intrf_desc[8]=$save_iinterface
-			config_desc=${config_desc:18}
 
-			printf "bLen %s bDescType %s bINum %s " ${intrf_desc[0]} ${intrf_desc[1]} ${intrf_desc[2]}
-			printf "bAltSetting %s bNumEpt %s bIClass %s " ${intrf_desc[3]} ${intrf_desc[4]} ${intrf_desc[5]}
-			printf "bISubClass %s bIProto %s iInterface %s " ${intrf_desc[6]} ${intrf_desc[7]} ${intrf_desc[8]}
-
-			i=`expr $i + 9`
+			printf "  bLen %-2s bDesc %-3s %-9s %-3s " ${intrf_desc[0]} ${intrf_desc[1]} "bINum" ${intrf_desc[2]}
+			printf "%-9s %-3s %-9s %-4s %-7s %-3s " "bAltSet" ${intrf_desc[3]} "bNumEpt" ${intrf_desc[4]} "bIClass" ${intrf_desc[5]}
+			printf "%-8s %-3s %-9s %-4s %-6s %-2s" "bISubCla" ${intrf_desc[6]} "bIProto" ${intrf_desc[7]} "iIntrf" ${intrf_desc[8]}
 			;;
 
-		05) printf "\nEpt Desc => "
+		$DT_ENDPOINT)
+			printf "\nEpt Desc => "
 
-			test \( $((0x${config_desc:0:2})) -ne 7 \)
+			test \( $d_len -ne 7 \)
 			if test $? -eq $TRUE
 			then
 				printf "ENDPOINT_DESC ERR\n"
@@ -550,14 +562,37 @@ parse_config_desc() {
 			lsb=${config_desc:10:2}
 			ept_desc[4]=$((0x$lsb$msb))
 			ept_desc[5]=$((0x${config_desc:12:2}))
-			config_desc=${config_desc:14}
 
-			printf "bLen %s bDescType %s bEptAddr %s " ${ept_desc[0]} ${ept_desc[1]} ${ept_desc[2]}
-			printf "bmAttr %s wMaxPktSize %s bInterval %s " ${ept_desc[3]} ${ept_desc[4]} ${ept_desc[5]}
-
-			i=`expr $i + 7`
+			printf "     bLen %-2s bDesc %-3s %-9s %-3s " ${ept_desc[0]} ${ept_desc[1]} "bEptAddr" ${ept_desc[2]}
+			printf "%-9s %-3s %-9s %-4s %-7s %-3s" "bmAttr" ${ept_desc[3]} "wMaxPkt" ${ept_desc[4]} "bIntval" ${ept_desc[5]}
+			;;
+		$DT_CS_INTERFACE)
+			printf "\n"
+			desc_subtype=${config_desc:4:2}
+			case $desc_subtype in
+			$CDC_HEADER_TYPE)
+				printf "cdc_header =>	 bLen %-2s bDesc %-3s %-9s %-3s " $d_len $d_type "bDescSub" $desc_subtype
+				printf "%-9s %-3s" "bcdCDC" ${config_desc:6:2}${config_desc:8:2}
+				;;
+			$CDC_CALL_MANAGEMENT_TYPE)
+				printf "cdc_call_mgmt => bLen %-2s bDesc %-3s %-9s %-3s " $d_len $d_type "bDescSub" $desc_subtype
+				printf "%-9s %-3s %-9s %-4s" "bmCapab" ${config_desc:6:2} "bDataIntf" ${config_desc:8:2}
+				;;
+			$CDC_ACM_TYPE)
+				printf "cdc_acm =>	 bLen %-2s bDesc %-3s %-9s %-3s " $d_len $d_type "bDescSub" $desc_subtype
+				printf "%-9s %-3s" "bmCapab" ${config_desc:6:2}
+				;;
+			$CDC_UNION_TYPE)
+				printf "cdc_union =>	 bLen %-2s bDesc %-3s %-9s %-3s " $d_len $d_type "bDescSub" $desc_subtype
+				printf "%-9s %-3s %-9s %-4s" "bMasterI0" ${config_desc:6:2} "bSlaveI0" ${config_desc:8:2}
+				;;
+			esac
 			;;
 		esac
+
+		i=`expr $i + $d_len`
+		skip_bytes=`expr $d_len \* 2`
+		config_desc=${config_desc:$skip_bytes}
 	done
 }
 
