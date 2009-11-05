@@ -40,6 +40,9 @@ print_help () {
 	printf "\n           \"-a XXX\" parse only device addr XXX"
 	printf "\n           \"-v\" print URB Tag, Timestamp in microseconds, Event Type & addr"
 	printf "\n           \"-h\" print this help"
+	printf "\n        Abbrivations:"
+	printf "\n           BIS - Bulk In Storage Class"
+	printf "\n           BOS - Bulk Out Storage Class"
 }
 
 usb_ctrlrequest=()
@@ -93,7 +96,7 @@ cdb=()
 print_cbw_cmd0() {
 	local cbw_cmd0="$@"
 
-	printf "\n       CDB => "
+	printf "\n     CDB => "
 	case $cbw_cmd0 in
 	04) printf "FormatUnit " ;;
 	12) printf "Inquiry " ;;
@@ -128,7 +131,7 @@ parse_cbw() {
 	local r=0
 	cbw_sign=""
 	r=1
-	printf "\nCBW => "
+	printf "  CBW => "
 
 	cbw_sign=${cbw:6:2}${cbw:4:2}${cbw:2:2}${cbw:0:2} #restructure byte order
 	printf "Sig %s " $cbw_sign
@@ -171,7 +174,7 @@ mass_storage_bulkindata() {
 	local r=0 char=0
 
 	data_printed=1
-	printf "\nData => "
+	printf "  Data => "
 
 	# Inquiry Reference http://en.wikipedia.org/wiki/SCSI_Inquiry_Command
 	test \( ${cdb[0]} = "12" \) -a \( $bulkin_sub_datalen = "36" \)
@@ -311,7 +314,7 @@ parse_csw() {
 	local r=0 csw_sign=0
 
 	r=1
-	printf "\nCSW => "
+	printf "  CSW => "
 	for i in $csw
 	do
 		case $r in
@@ -376,6 +379,7 @@ parse_bulk_in() {
 	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
 	if test $? -eq $TRUE
 	then
+		printf "\nBIS" # Bulk In Storage
 		bulk_in=${bulk_in:2} # skip 2 characters '=' and space
 		if [ $expected_data != 0 ]
 		then
@@ -448,6 +452,7 @@ parse_bulk_out() {
 	then
 		if [ $submission_datalen -eq $datalen ] #check if submission and callback datalen is same
 		then
+			printf "\nBOS" #Bulk Out Storage
 			case $datalen in
 			31) parse_cbw $bulk_out_submission ;;
 			esac
