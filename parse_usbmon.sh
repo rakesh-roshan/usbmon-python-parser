@@ -53,6 +53,7 @@ usb_config_descriptor=()
 
 #Supported Classes
 USB_CLASS_MASS_STORAGE=08
+USB_CLASS_CDC_DATA="0a"
 
 # Standard Descriptor Types
 DT_CONFIG=02
@@ -365,7 +366,6 @@ parse_bulk_in() {
 	space_pos=`expr index "$bulk_in" " "` # find out position of first space
 	datalen=${bulk_in:0:`expr $space_pos - 1`}
 	bulk_in=${bulk_in:$space_pos} # skip characters of datalen and space
-
 #**************************************************************************************
 #	Interface class - Mass storage Subclass- ??
 #**************************************************************************************
@@ -410,6 +410,29 @@ parse_bulk_in() {
 				bulkin_sub_datalen=0
 			fi
 		fi
+	fi
+#**************************************************************************************
+#	Interface class - CDC-ACM Subclass- ??
+#**************************************************************************************
+	test \( $event_str = "SUB" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_CDC_DATA" \)
+	if test $? -eq $TRUE
+	then
+		printf "" #TODO - tillnow do nothing.
+	fi
+
+	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_CDC_DATA" \)
+	if test $? -eq $TRUE
+	then
+		bulk_in=${bulk_in:2} # skip 2 characters '=' and space
+		i=1
+		bulk_in=`echo $bulk_in | sed 's/ //g'` #remove space's from string
+		while [ $i -le "$datalen" ]
+		do
+			char=${bulk_in:0:2}
+			printf \\$(printf '%03o' $((0x$char))) #decimal to ascii
+			bulk_in=${bulk_in:2}
+			i=`expr $i + 1`
+		done
 	fi
 }
 
@@ -968,6 +991,7 @@ parse_address(){
 processLine(){
 	line="$@" # get all args
 #	echo $line
+	local Ii_status=0 Ii_interval=0 colon_pos=0
 	
 	arg=1
 
@@ -1031,6 +1055,14 @@ processLine(){
 					return #skip parsing
 				fi
 			fi
+		fi
+
+		test \( "$ept_type" = "Ii" \)
+		if test $? -eq $TRUE
+		then
+			colon_pos=`expr index "$i" ":"` # find out position of ":"
+			Ii_status=${i:0:`expr $colon_pos - 1`}
+			Ii_interval=${i:$colon_pos}
 		fi
 
 		# This field makes no sense for submissions & non control endpoints, just skip
