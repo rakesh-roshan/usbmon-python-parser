@@ -348,21 +348,6 @@ parse_bulk_in() {
 	local bulk_in="$@"
 	local datalen=0
 
-	l=1
-	OIFS=$IFS
-	IFS=$(echo -en " ")
-	for i in $bulk_in
-	do
-		if [ $l -le 5 ]
-		then
-			temp=`expr ${#i} + 1`
-			bulk_in=${bulk_in:$temp} # save received data as a string
-		else
-			break
-		fi
-		l=`expr $l + 1`
-	done
-
 	space_pos=`expr index "$bulk_in" " "` # find out position of first space
 	datalen=${bulk_in:0:`expr $space_pos - 1`}
 	bulk_in=${bulk_in:$space_pos} # skip characters of datalen and space
@@ -439,21 +424,6 @@ parse_bulk_in() {
 parse_bulk_out() {
 	local bulk_out="$@"
 	local datalen=0
-
-	l=1
-	OIFS=$IFS
-	IFS=$(echo -en " ")
-	for i in $bulk_out
-	do
-		if [ $l -le 5 ]
-		then
-			temp=`expr ${#i} + 1`
-			bulk_out=${bulk_out:$temp} # save received data as a string
-		else
-			break
-		fi
-		l=`expr $l + 1`
-	done
 
 	space_pos=`expr index "$bulk_out" " "` # find out position of first space
 	datalen=${bulk_out:0:`expr $space_pos - 1`}
@@ -629,9 +599,24 @@ parse_usb_requests(){
 	local req_line="$@" # get all args
 	local temp_interface_desc=() temp_endpoint_desc=()
 	local Direction=0 Type=0 Recep=0
-	local msb=0 lsb=0
+	local msb=0 lsb=0 l=0 temp=0
 	local equal_pos=0 received_data=0 data_start=0
 	local datastr=0 wtotallen=0 char=0
+
+	l=1
+	OIFS=$IFS
+	IFS=$(echo -en " ")
+	for i in $req_line
+	do
+		if [ $l -le 5 ]
+		then
+			temp=`expr ${#i} + 1`
+			req_line=${req_line:$temp} # save received data as a string
+		else
+			break
+		fi
+		l=`expr $l + 1`
+	done
 
 	[[ "$type_dir" = "Bi" ]] && parse_bulk_in $req_line
 
@@ -646,15 +631,13 @@ parse_usb_requests(){
 		for i in $req_line
 		do
 			case "$l" in
-			5) ;; #TODO
-
 			# D7:	Data Transfer Direction
 			#	0 - Host-to-Device [Out]
 			#	1 - Device-to-Host [In]
 			# D6-D5	Type => 0 - Standard 1 - Class 2 - Vendor 3 - Reserved
 			# D4...D0 Receipent => 0 - Device 1 - Interface
 			#			2 - Endpoint 3 - Other 4...31 - Reserved
-			6) usb_ctrlrequest[0]=$i
+			1) usb_ctrlrequest[0]=$i
 				Direction=$(($((0x$i & 0x80)) >> 7 ))
 				Type=$(($((0x$i & 0x60)) >> 5 ))
 				Recep=$((0x$i & 0x1F))
@@ -682,7 +665,7 @@ parse_usb_requests(){
 
 				usb_ctrlrequest_str[0]="$Type_str$Direction_str$Recep_str" ;;
 
-			7) usb_ctrlrequest[1]=$i # __u8 bRequest
+			2) usb_ctrlrequest[1]=$i # __u8 bRequest
 				if [ $Type_str = "Std" ]
 				then
 					case $i in
@@ -712,7 +695,7 @@ parse_usb_requests(){
 					esac
 				fi
 				;;
-			8) usb_ctrlrequest[2]=$i
+			3) usb_ctrlrequest[2]=$i
 				if [ $Type_str = "Std" ]
 				then
 					case ${usb_ctrlrequest[1]} in
@@ -758,7 +741,7 @@ parse_usb_requests(){
 					esac
 				fi
 				;;
-			9) usb_ctrlrequest[3]=$i
+			4) usb_ctrlrequest[3]=$i
 				if [ $Type_str = "Std" ]
 				then
 					case ${usb_ctrlrequest[1]} in
@@ -792,8 +775,8 @@ parse_usb_requests(){
 					esac
 				fi
 				;;
-			10) ;; # skip hex value for wLength
-			11) usb_ctrlrequest[4]=$i #consider dacimal wLength
+			5) ;; # skip hex value for wLength
+			6) usb_ctrlrequest[4]=$i #consider dacimal wLength
 			    usb_ctrlrequest_str[4]="wLen-$i" ;;
 			esac
 		l=`expr $l + 1`
