@@ -73,11 +73,9 @@ CDC_UNION_TYPE=06
 std_req_flag=0x0000
 
 # Global definitions
-TRUE=0
-FALSE=1
-no=0
-yes=1
-INVALID=-1
+TRUE=0; FALSE=1
+no=0; yes=1
+INVALID=-1; skip_parsing=0
 save_iinterface=-1
 submission_datalen=0
 data_printed=0; curr_event=$INVALID; prev_event=$INVALID
@@ -307,6 +305,13 @@ mass_storage_bulkindata() {
 		return
 	fi
 
+	if [ $bulkin_sub_datalen -gt 32 ]
+	then
+		printf "${blkin:0:71}" #print only 32 bytes (71= 32bytes * 2char/byte + 7spaces)
+		printf " snip..."
+		return
+	fi
+
 	printf "$blkin"
 }
 
@@ -359,6 +364,7 @@ parse_bulk_in() {
 	then
 		data_printed=0
 		bulkin_sub_datalen=`expr $bulkin_sub_datalen + $datalen`
+		return
 	fi
 
 	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
@@ -371,11 +377,8 @@ parse_bulk_in() {
 			if [ $bulkin_sub_datalen -eq $expected_data ] #check if submission and callback datalen is same
 			then
 				mass_storage_bulkindata $bulk_in
-				if [ $bulkin_sub_datalen -gt 32 ]
-				then
-					printf " snip..."
-				fi
 				bulkin_sub_datalen=0	#ignore any more data for printing
+				return
 			fi
 
 			test \( $bulkin_sub_datalen = "13" \)
@@ -383,7 +386,9 @@ parse_bulk_in() {
 			then
 				parse_csw $bulk_in
 				bulkin_sub_datalen=0
+				return
 			fi
+			return
 		fi
 
 		if [ $expected_data = 0 ]
@@ -393,7 +398,9 @@ parse_bulk_in() {
 			then
 				parse_csw $bulk_in
 				bulkin_sub_datalen=0
+				return
 			fi
+			return
 		fi
 	fi
 #**************************************************************************************
@@ -403,6 +410,7 @@ parse_bulk_in() {
 	if test $? -eq $TRUE
 	then
 		printf "" #TODO - tillnow do nothing.
+		return
 	fi
 
 	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_CDC_DATA" \)
@@ -418,6 +426,7 @@ parse_bulk_in() {
 			bulk_in=${bulk_in:2}
 			i=`expr $i + 1`
 		done
+		return
 	fi
 }
 
@@ -438,6 +447,7 @@ parse_bulk_out() {
 		bulk_out=${bulk_out:2} # skip 2 characters '=' and space
 		submission_datalen=$datalen
 		bulk_out_submission=$bulk_out # save and process only if we are sure callback has same datalen
+		return
 	fi
 
 	test \( $event_str = "CBK" \) -a \( ${OutEpt_interfaceclass[$ept_num]} = "$USB_CLASS_MASS_STORAGE" \)
@@ -452,7 +462,9 @@ parse_bulk_out() {
 
 			submission_datalen=0 #make it 0 for next processing
 			bulk_out_submission="" #we are done with procession, make it null
+			return
 		fi
+		return
 	fi
 #**************************************************************************************
 }
@@ -595,32 +607,13 @@ parse_config_desc() {
 }
 
 ep0_datalen=0 data_available=$INVALID
-parse_usb_requests(){
-	local req_line="$@" # get all args
+parse_ctrl_in() {
+	local ctrl_in="$@" # get all args
 	local temp_interface_desc=() temp_endpoint_desc=()
 	local Direction=0 Type=0 Recep=0
-	local msb=0 lsb=0 l=0 temp=0
+	local msb=0 lsb=0
 	local equal_pos=0 received_data=0 data_start=0
 	local datastr=0 wtotallen=0 char=0
-
-	l=1
-	OIFS=$IFS
-	IFS=$(echo -en " ")
-	for i in $req_line
-	do
-		if [ $l -le 5 ]
-		then
-			temp=`expr ${#i} + 1`
-			req_line=${req_line:$temp} # save received data as a string
-		else
-			break
-		fi
-		l=`expr $l + 1`
-	done
-
-	[[ "$type_dir" = "Bi" ]] && parse_bulk_in $req_line
-
-	[[ "$type_dir" = "Bo" ]] && parse_bulk_out $req_line
 
 	test \( $event_str = "SUB" \) -a  \( -n "$event_str" \) -a \( "$ept_str" = "0" \)
 	if test $? -eq $TRUE
@@ -628,7 +621,7 @@ parse_usb_requests(){
 		l=1
 		OIFS=$IFS
 		IFS=$(echo -en " ")
-		for i in $req_line
+		for i in $ctrl_in
 		do
 			case "$l" in
 			# D7:	Data Transfer Direction
@@ -796,9 +789,9 @@ parse_usb_requests(){
 
 		if [ "$data_available" == "$yes" ]
 		then
-			equal_pos=`expr index "$req_line" "="` # find out position of "="
+			equal_pos=`expr index "$ctrl_in" "="` # find out position of "="
 			data_start=`expr $equal_pos + 1` # skip space after "="
-			received_data=${req_line:$data_start} # save received data as a string
+			received_data=${ctrl_in:$data_start} # save received data as a string
 
 			Type=$(($((0x${usb_ctrlrequest[0]} & 0x60)) >> 5 ))
 			case $Type in
@@ -933,10 +926,19 @@ parse_usb_requests(){
 	fi #endof test \( $event_str = "CBK" \)
 }
 
+parse_endpoints(){
+	local data="$@" # get all args
+
+	[[ "$type_dir" = "Bi" ]] && parse_bulk_in $data
+
+	[[ "$type_dir" = "Bo" ]] && parse_bulk_out $data
+
+	[[ "$type_dir" = "Ci" ]] && parse_ctrl_in $data
+}
+
 # parse "Ii:1:001:1" based on semicolon
 parse_address(){
 	addr_line="$@"
-#	echo $addr_line
 
 	k=1
 
@@ -971,11 +973,11 @@ parse_address(){
 	IFS=$(echo -en " ")
 }
 
-processLine(){
+parse_urb_time_event_addr(){
 	line="$@" # get all args
-#	echo $line
 	local Ii_status=0 Ii_interval=0 colon_pos=0
 	
+	skip_parsing=0 #used to skip parsing in error and unnecessary conditions.
 	arg=1
 
 	# parse line "f667e680 1127762832 C Ii:1:001:1 0:2048 2 = 2000"
@@ -998,7 +1000,12 @@ processLine(){
 		esac
 		curr_event=$event_str #below logic, doesnt process any same event lines onces,
 					#data is printed, implented to save parsing time.
-		[[ "$curr_event" = "$prev_event" ]] && [[ $data_printed = "1" ]] && return
+		test \( "$curr_event" = "$prev_event" \) -a \( $data_printed = "1" \)
+		if test $? -eq $TRUE
+		then
+			skip_parsing=1
+			return
+		fi
 		;;
 	4) parse_address $i ;;
 	5) #process status feild
@@ -1009,6 +1016,7 @@ processLine(){
 			if [ $setup_tag != "s" ]
 			then
 				printf "\nSetup packet not captured => $line"
+				skip_parsing=1
 				return
 			fi
 		fi
@@ -1019,6 +1027,7 @@ processLine(){
 			if [ $setup_tag != "s" ]
 			then
 				printf "\nSkiping Callback => $line\n"
+				skip_parsing=1
 				return	#don't want to process callback
 					#since previous setup tag was wrong.
 			fi
@@ -1035,6 +1044,7 @@ processLine(){
 					bulkin_sub_datalen=0	#make this 0 since we are skiping
 								#parsing of BulkIn Callback
 					printf "\nurb error $i => $line"
+					skip_parsing=1
 					return #skip parsing
 				fi
 			fi
@@ -1069,6 +1079,31 @@ processLine(){
 
 	arg=`expr $arg + 1`
 	done
+}
+
+processLine(){
+	local line="$@" # get all args
+	local l=0 temp=0
+
+	parse_urb_time_event_addr $line
+	[[ $skip_parsing = "1" ]] && return #return since dont want to parse, b'coz of error
+	skip_parsing=0
+
+	#remove parsed data from line.
+	l=1
+	OIFS=$IFS
+	IFS=$(echo -en " ")
+	for i in $line
+	do
+		if [ $l -le 5 ]
+		then
+			temp=`expr ${#i} + 1`
+			line=${line:$temp} # save received data as a string
+		else
+			break
+		fi
+		l=`expr $l + 1`
+	done
 
 	test \( "$ept_f" = "1" \) -a  \( "$addr_f" = "1" \)
 	if test $? -eq $TRUE
@@ -1081,7 +1116,7 @@ processLine(){
 				printf "\nUrb %s Time %s " $urb_str $time_str
 				printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
 			fi
-			parse_usb_requests $line
+			parse_endpoints $line
 			return
 		else
 			return
@@ -1099,7 +1134,7 @@ processLine(){
 				printf "\nUrb %s Time %s " $urb_str $time_str
 				printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
 			fi
-			parse_usb_requests $line #decide parsing of line based on endpoint
+			parse_endpoints $line #decide parsing of line based on endpoint
 			return
 		else
 			return
@@ -1111,7 +1146,7 @@ processLine(){
 		printf "\nUrb %s Time %s " $urb_str $time_str
 		printf "%s %s Bus %s Addr %s Ept %s" $event_str $ept_type_str $bus_str $addr_str $ept_str
 	fi
-	parse_usb_requests $line
+	parse_endpoints $line
 }
 
 # Following logic is based upon implementation from
