@@ -54,6 +54,7 @@ usb_config_descriptor=()
 #Supported Classes
 USB_CLASS_MASS_STORAGE=08
 USB_CLASS_CDC_DATA="0a"
+USB_CLASS_COMM=02
 
 # Standard Descriptor Types
 DT_CONFIG=02
@@ -81,8 +82,9 @@ submission_datalen=0
 data_printed=0; curr_event=$INVALID; prev_event=$INVALID
 
 iInterface_arr=() #array for saving string desc index
-InEpt_interfaceclass=()
-OutEpt_interfaceclass=() #save this endpoint belongs to which class?
+#save this endpoint belongs to which class, initialize as a null string to avoid errors?
+InEpt_interfaceclass=("", "", "", "", "", "", "", "", "", "", "", "", "", "", "")
+OutEpt_interfaceclass=("", "", "", "", "", "", "", "", "", "", "", "", "", "", "")
 
 #************************************************
 #  Parse Mass storage specific command and data
@@ -607,7 +609,7 @@ parse_config_desc() {
 }
 
 ep0_datalen=0 data_available=$INVALID
-parse_ctrl_in() {
+parse_ctrl_ept() {
 	local ctrl_in="$@" # get all args
 	local temp_interface_desc=() temp_endpoint_desc=()
 	local Direction=0 Type=0 Recep=0
@@ -926,6 +928,21 @@ parse_ctrl_in() {
 	fi #endof test \( $event_str = "CBK" \)
 }
 
+parse_intr_in(){
+	local intr_in="$@"
+	test \( $event_str = "SUB" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_COMM" \)
+	if test $? -eq $TRUE
+	then
+		return #do nothing since submission only contains max data capacity of urb. TODO
+	fi
+
+	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_COMM" \) -a \( "$dev_addr" != "INVALID" \)
+	if test $? -eq $TRUE
+	then
+		return
+	fi
+}
+
 parse_endpoints(){
 	local data="$@" # get all args
 
@@ -933,7 +950,9 @@ parse_endpoints(){
 
 	[[ "$type_dir" = "Bo" ]] && parse_bulk_out $data
 
-	[[ "$type_dir" = "Ci" ]] && parse_ctrl_in $data
+	[[ "$type_dir" = "Ci" ]] || [[ "$type_dir" = "Co" ]] && parse_ctrl_ept $data
+
+	[[ "$type_dir" = "Ii" ]] && parse_intr_in $data
 }
 
 # parse "Ii:1:001:1" based on semicolon
