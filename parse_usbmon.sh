@@ -943,7 +943,7 @@ parse_intr_in(){
 		return #do nothing since submission only contains max data capacity of urb. TODO
 	fi
 
-	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_COMM" \) -a \( "$dev_addr" != "INVALID" \)
+	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_COMM" \)
 	if test $? -eq $TRUE
 	then
 		printf "\nIIN  "
