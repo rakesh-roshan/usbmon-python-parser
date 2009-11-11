@@ -43,6 +43,7 @@ print_help () {
 	printf "\n        Abbrivations:"
 	printf "\n           BIS - Bulk In Storage Class"
 	printf "\n           BOS - Bulk Out Storage Class"
+	printf "\n           IIC - Interrupt In Communication Class"
 }
 
 usb_ctrlrequest=()
@@ -63,6 +64,9 @@ DT_ENDPOINT=05
 
 # Class Descriptors
 DT_CS_INTERFACE=24
+
+#Class Requests
+SERIAL_STATE=20
 
 # CDC Class [include/linux/usb/cdc.h]
 CDC_HEADER_TYPE=00
@@ -930,6 +934,9 @@ parse_ctrl_ept() {
 
 parse_intr_in(){
 	local intr_in="$@"
+	local equal_pos=0 data_start=0 datalen=0 msb=0 lsb=0
+	local cdc_notify=()
+
 	test \( $event_str = "SUB" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_COMM" \)
 	if test $? -eq $TRUE
 	then
@@ -939,6 +946,34 @@ parse_intr_in(){
 	test \( $event_str = "CBK" \) -a \( ${InEpt_interfaceclass[$ept_num]} = "$USB_CLASS_COMM" \) -a \( "$dev_addr" != "INVALID" \)
 	if test $? -eq $TRUE
 	then
+		printf "\nIIN  "
+		equal_pos=`expr index "$intr_in" "="`
+		[[ $equal_pos -eq 0 ]] && return
+		datalen=${intr_in:0:`expr $equal_pos - 1`}
+		data_start=`expr $equal_pos + 1`
+		intr_in=${intr_in:$data_start} # update actual data
+		intr_in=`echo $intr_in | sed 's/ //g'`
+
+		case ${intr_in:2:2} in
+		$SERIAL_STATE) # http://www.usb.org/developers/devclass_docs/usbcdc11.pdf 6.3.5
+		    if [ $datalen -ne 10 ]
+		    then
+			printf "Notify_Serial_State Err => $intr_in\n"
+			return
+		    fi
+		    cdc_notify[0]=${intr_in:0:2}; cdc_notify[1]=${intr_in:2:2}
+		    msb=${intr_in:4:2}; lsb=${intr_in:6:2}; cdc_notify[2]=$((0x$lsb$msb))
+		    msb=${intr_in:8:2}; lsb=${intr_in:10:2}; cdc_notify[3]=$((0x$lsb$msb))
+		    msb=${intr_in:12:2}; lsb=${intr_in:14:2}; cdc_notify[4]=$((0x$lsb$msb))
+
+		    printf "bReqType %s bNotifType %s " ${cdc_notify[0]} ${cdc_notify[1]}
+		    printf "wVal %s wIdx %s wLen %s data=%s" ${cdc_notify[2]} ${cdc_notify[3]} ${cdc_notify[4]} ${intr_in:16:4}
+		    printf "\n     InClass SERIAL_STATE Intrf %s " $((0x${cdc_notify[3]}))
+		    printf "bOvRun $(($((0x${intr_in:16:2} & 0x40)) >> 6 )) bPar $(($((0x${intr_in:16:2} & 0x20)) >> 5 )) "
+		    printf "bFram $(($((0x${intr_in:16:2} & 0x10)) >> 4 )) bRing $(($((0x${intr_in:16:2} & 0x08)) >> 3 )) "
+		    printf "bBrk $(($((0x${intr_in:16:2} & 0x04)) >> 2 )) bTxC $(($((0x${intr_in:16:2} & 0x02)) >> 1 )) bRxC $((0x${intr_in:16:2} & 0x01))\n"
+		    ;;
+		esac
 		return
 	fi
 }
