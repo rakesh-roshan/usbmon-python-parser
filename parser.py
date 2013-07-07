@@ -1,8 +1,10 @@
 #!/usr/bin/python
 
+from __future__ import print_function
 import os
 import string
 import traceback
+from   optparse  import OptionParser
 
 # global variable used by multipule functions
 
@@ -13,6 +15,7 @@ urb_type = None
 bus = None
 device = None
 endpoint = None
+outf = None
 
 # static variable
 delta_tmp = {}
@@ -32,14 +35,17 @@ std_req = {'00': 'GET_STATUS', \
            '08': 'GET_CONFIG', \
            '09': 'SET_CONFIG', \
            '0a': 'GET_INTERFACE', \
-           '11': 'SET_INTERFACE', \
-           '12': 'SYNCH_FRAME'
+           '0b': 'SET_INTERFACE', \
+           '0c': 'SYNCH_FRAME'
            }
 
 
+parser = OptionParser()
+parser.add_option("-f","--file",dest="filename")
+
 def lsusb():
     output = os.popen('lsusb').read()
-    print output
+    print (output)
 
 def hexstr2asc(hexstr):
     return chr(int(hexstr, 16))
@@ -69,26 +75,51 @@ def ctl_parse(array):
     global bus
     global device
     global endpoint
-
+    global outf
     try:
         #array = post_line.split(' ')
         if event_type == 'S':
+	    raw_cmd=""
+            array2=[]
+            delta_tmp[urb_tag]["sub_cmd"]="UNKNOWN"
+            delta_tmp[urb_tag]["sub_length"]=0
+            delta_tmp[urb_tag]["sub_raw_cmd"]=""
             #if array[0] != 's':
             #    print "---Bad---" + post_line
             #    return
-            raw_cmd = ' '.join(array[1:-2])
-            cmd = cmd_parse(raw_cmd)
-            req_len = int(array[-2])
-            print "%s\tRE=%d\t%s" % (cmd, req_len, raw_cmd)
+            #raw_cmd = ' '.join(array[1:-2])
+            for num in array[1:]:
+		if(num.isalnum()):
+ 			array2.append(num)
+		else:
+			break
+
+            raw_cmd = ' '.join(array2[:-1])
+            try:
+              req_len = int(array2[-1])
+   	    except:
+              print ("ERR!-- int conv in ctl_parse:", array2[-1],raw_cmd,file=outf)
+		
+            delta_tmp[urb_tag]["sub_length"]=req_len
+            delta_tmp[urb_tag]["sub_raw_cmd"]=raw_cmd
+	    try:
+	            cmd = cmd_parse(raw_cmd)
+                    delta_tmp[urb_tag]["sub_cmd"]=cmd
+   	    except:
+              print ("ERR!-- cmd parse in ctl_parse:", raw_cmd,file=outf)
         elif event_type == 'C':
             status = array[0]
             act_len = array[1]
             #data = post_line[7:]
             data = ' '.join(array[3:])
-            print "Sta=%s\t\tRC=%d\t%s" % (status, int(act_len), data)
-            print "\t"*5 + to_ascii(data)
+            if delta_tmp.has_key(urb_tag):
+            	print ("%s\tRE=%d\t%s" % (delta_tmp[urb_tag]["sub_cmd"], 
+                       delta_tmp[urb_tag]["sub_length"], delta_tmp[urb_tag]["sub_raw_cmd"]),file=outf)
+                del delta_tmp[urb_tag]
+            print ("Sta=%s\t\tRC=%d\t%s" % (status, int(act_len), data),file=outf)
+            print ("\t"*5 + to_ascii(data),file=outf)
     except:
-        print "ERR!--Raw data:", array
+        print ("ERR!--Raw data in ctl_parse:", array,raw_cmd,file=outf)
         traceback.print_exc()
     
 def buk_parse(array):
@@ -99,6 +130,7 @@ def buk_parse(array):
     global bus
     global device
     global endpoint
+    global outf
 
     try:
         #print '\n' + post_line + '\n'
@@ -118,15 +150,15 @@ def buk_parse(array):
             
         else:
             if delta_tmp.has_key(urb_tag):
-                print "\nSta=%s\t\tRC=%d\t%s" % (delta_tmp[urb_tag]["sub_status"], 
+                print ("\nSta=%s\t\tRC=%d\t%s" % (delta_tmp[urb_tag]["sub_status"], 
                                                int(delta_tmp[urb_tag]["sub_length"]), 
-                                               delta_tmp[urb_tag]["sub_data"].strip())
+                                               delta_tmp[urb_tag]["sub_data"].strip()),file=outf)
                 del delta_tmp[urb_tag]
-            print "Sta=%s\t\tRC=%d\t%s" % (status, int(length), data)
-            print "\t"*5 + to_ascii(data)
+            print ("Sta=%s\t\tRC=%d\t%s" % (status, int(length), data),file=outf)
+            print ("\t"*5 + to_ascii(data),file=outf)
         #print post_line
     except:
-        print "ERR!--Raw data:",array
+        print ("ERR!--Raw data in buk_parse",array,file=outf)
         traceback.print_exc()
 
 def int_parse(post_line):
@@ -148,7 +180,8 @@ def iso_parse(post_line):
     global bus
     global device
     global endpoint
-    print ""
+    global outf
+    print ("",file=outf)
     #print post_line
 
 
@@ -160,12 +193,22 @@ def pre_parse(array):
     global bus
     global device
     global endpoint
+    global outf
     
     global delta_tmp
 
     #array = pre_line.split(' ')
 
+    try:
+    	arrayx = array[3].split(':')
+    except:
+	print("array index error",array)
+	raise
+    bus = int(arrayx[1])
+    device = int(arrayx[2])
+    endpoint = int(arrayx[3])
     urb_tag = array[0]
+    urb_type = urbtype_d[arrayx[0]]
     event_type = array[2]
     if(event_type == 'S'):        
         delta = 0
@@ -174,7 +217,7 @@ def pre_parse(array):
         delta_tmp[urb_tag]["sub_time"] = array[1]            
         return 0
     if(event_type == 'E'):
-        print 'Error packet'
+        print ('Error packet',file=outf)
         return 0
     if delta_tmp == None or not delta_tmp.has_key(urb_tag) or delta_tmp[urb_tag]["sub_time"]==None:
         return 0;
@@ -188,13 +231,8 @@ def pre_parse(array):
         
     delta_tmp[urb_tag]["sub_time"] = None
     #print array[1]
-    arrayx = array[3].split(':')
-    urb_type = urbtype_d[arrayx[0]]
-    bus = int(arrayx[1])
-    device = int(arrayx[2])
-    endpoint = int(arrayx[3])
-    print "%d-%d-%d\t%s\t%s\t" % (bus, device, endpoint, \
-                                         urb_type, delta),
+    print ("%d-%d-%d\t%s\t%s\t" % (bus, device, endpoint, \
+                                         urb_type, delta),file=outf,)
     return 1
 
 def post_parse(post_line_fields):
@@ -205,7 +243,7 @@ def post_parse(post_line_fields):
     global bus
     global device
     global endpoint
-    
+    global outf
     global delta_tmp
 
     if (urb_type == urbtype_d['Ci'] or urb_type == urbtype_d['Co']):
@@ -217,7 +255,7 @@ def post_parse(post_line_fields):
     elif (urb_type == urbtype_d['Zi'] or urb_type == urbtype_d['Zo']):
         iso_parse(post_line_fields)
     else:
-        print "---ERR---" ,urb_type, post_line_fields
+        print ("---ERR--- post_parse" ,urb_type, post_line_fields,file=outf)
 
 def run(path):
     global urb_tag
@@ -229,8 +267,15 @@ def run(path):
     global endpoint
     
     global delta_tmp
+    global outf
+    args = path.strip().split(' ')
+    (options,path)=parser.parse_args(args)
+    if options.filename !=None:
+	outf=open(options.filename,"w")
+    else:
+	outf = None
     try:
-        fh = open(path, "r")
+        fh = open(path[0], "r")
         
         while True:
             line = fh.readline()
