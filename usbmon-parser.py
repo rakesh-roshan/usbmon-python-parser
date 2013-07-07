@@ -31,6 +31,9 @@ class CLI(cmd.Cmd):
         #print path
         parser.run(path)
         
+    def do_parse(self,arg):
+	parser.run(arg)
+
     def do_quit(self, arg):
         sys.exit(1)
 
@@ -44,5 +47,6 @@ class CLI(cmd.Cmd):
 #
 # try it out
 
+print "Starting CLI"
 cli = CLI()
 cli.cmdloop()
