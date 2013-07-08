@@ -16,7 +16,7 @@ bus = None
 device = None
 endpoint = None
 outf = None
-
+count = 1
 # static variable
 delta_tmp = {}
 
@@ -194,7 +194,8 @@ def pre_parse(array):
     global device
     global endpoint
     global outf
-    
+    global count    
+
     global delta_tmp
 
     #array = pre_line.split(' ')
@@ -231,8 +232,9 @@ def pre_parse(array):
         
     delta_tmp[urb_tag]["sub_time"] = None
     #print array[1]
-    print ("%s %d-%d-%d\t%s\t%s\t" % (urb_tag,bus, device, endpoint, \
+    print ("%d %s %d-%d-%d\t%s\t%s\t" % (count,urb_tag,bus, device, endpoint, \
                                          urb_type, delta),file=outf,)
+    count = count + 1
     return 1
 
 def post_parse(post_line_fields):
@@ -265,7 +267,7 @@ def run(path):
     global bus
     global device
     global endpoint
-    
+    global count 
     global delta_tmp
     global outf
     args = path.strip().split(' ')
@@ -276,7 +278,7 @@ def run(path):
 	outf = None
     try:
         fh = open(path[0], "r")
-        
+        count=1
         while True:
             line = fh.readline()
             line.strip();
