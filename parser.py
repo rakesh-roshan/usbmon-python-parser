@@ -19,6 +19,7 @@ outf = None
 count = 1
 # static variable
 delta_tmp = {}
+last_delta = None
 
 # readonly global variable
 #event_type = {'S': 'Submission', 'C': 'Callback', 'E': 'Error'}
@@ -67,7 +68,7 @@ def to_ascii(data):
                 datax = datax + '.'
     return datax
     
-def ctl_parse(array):
+def ctl_parse(array,store=True):
     global urb_tag
     global delta
     global event_type
@@ -81,9 +82,6 @@ def ctl_parse(array):
         if event_type == 'S':
 	    raw_cmd=""
             array2=[]
-            delta_tmp[urb_tag]["sub_cmd"]="UNKNOWN"
-            delta_tmp[urb_tag]["sub_length"]=0
-            delta_tmp[urb_tag]["sub_raw_cmd"]=""
             #if array[0] != 's':
             #    print "---Bad---" + post_line
             #    return
@@ -99,14 +97,21 @@ def ctl_parse(array):
               req_len = int(array2[-1])
    	    except:
               print ("ERR!-- int conv in ctl_parse:", array2[-1],raw_cmd,file=outf)
+              req_len=0
 		
-            delta_tmp[urb_tag]["sub_length"]=req_len
-            delta_tmp[urb_tag]["sub_raw_cmd"]=raw_cmd
 	    try:
 	            cmd = cmd_parse(raw_cmd)
-                    delta_tmp[urb_tag]["sub_cmd"]=cmd
    	    except:
               print ("ERR!-- cmd parse in ctl_parse:", raw_cmd,file=outf)
+              cmd="UNKNOWN"
+            if(not store):
+                print ("%s\tRE=%d\t%s\n" % (cmd, 
+                       req_len,raw_cmd),file=outf)
+            else:
+                delta_tmp[urb_tag]["sub_cmd"]=cmd
+                delta_tmp[urb_tag]["sub_length"]=req_len
+                delta_tmp[urb_tag]["sub_raw_cmd"]=raw_cmd
+                
         elif event_type == 'C':
             status = array[0]
             act_len = array[1]
@@ -122,7 +127,7 @@ def ctl_parse(array):
         print ("ERR!--Raw data in ctl_parse:", array,raw_cmd,file=outf)
         traceback.print_exc()
     
-def buk_parse(array):
+def bulk_parse(array,store=True):
     global urb_tag
     global delta
     global event_type
@@ -144,13 +149,18 @@ def buk_parse(array):
             data = ' '.join(array[3:])
         if event_type == 'S':
             #print "Sta=%s\tRE=%d\t%s" % (status, int(length), data)
-            delta_tmp[urb_tag]["sub_length"]=length
-            delta_tmp[urb_tag]["sub_status"]=status
-            delta_tmp[urb_tag]["sub_data"]=data
-            
+            if(store):
+                delta_tmp[urb_tag]["sub_length"]=length
+                delta_tmp[urb_tag]["sub_status"]=status
+                delta_tmp[urb_tag]["sub_data"]=data
+            else:
+                print ("Sta=%s\t\tRC=%d\t%s\n" % (status, 
+                                               int(length), 
+                                               data.strip()),file=outf)
+           
         else:
             if delta_tmp.has_key(urb_tag):
-                print ("\nSta=%s\t\tRC=%d\t%s" % (delta_tmp[urb_tag]["sub_status"], 
+                print ("\nSta=%s\t\tRE=%d\t%s" % (delta_tmp[urb_tag]["sub_status"], 
                                                int(delta_tmp[urb_tag]["sub_length"]), 
                                                delta_tmp[urb_tag]["sub_data"].strip()),file=outf)
                 del delta_tmp[urb_tag]
@@ -158,10 +168,10 @@ def buk_parse(array):
             print ("\t"*5 + to_ascii(data),file=outf)
         #print post_line
     except:
-        print ("ERR!--Raw data in buk_parse",array,file=outf)
+        print ("ERR!--Raw data in bulk_parse",array,file=outf)
         traceback.print_exc()
 
-def int_parse(post_line):
+def int_parse(post_line,store=True):
     global urb_tag
     global delta
     global event_type
@@ -172,7 +182,7 @@ def int_parse(post_line):
     
     #print post_line
 
-def iso_parse(post_line):
+def iso_parse(post_line,store=True):
     global urb_tag
     global delta
     global event_type
@@ -223,12 +233,12 @@ def pre_parse(array):
     if delta_tmp == None or not delta_tmp.has_key(urb_tag) or delta_tmp[urb_tag]["sub_time"]==None:
         return 0;
     deltax = long(array[1]) - long(delta_tmp[urb_tag]["sub_time"])
-    if (deltax > 1000000) :
+    '''if (deltax > 1000000) :
         delta = str(deltax/100000) + "s"
     elif (deltax > 1000) :
         delta = str(deltax/1000) + 'ms'
-    else:
-        delta = str(deltax) + 'us'
+    else:'''
+    delta = str(deltax) + 'us'
         
     delta_tmp[urb_tag]["sub_time"] = None
     #print array[1]
@@ -237,7 +247,53 @@ def pre_parse(array):
     count = count + 1
     return 1
 
-def post_parse(post_line_fields):
+def pre_parse_freq(array):
+    global urb_tag
+    global delta
+    global event_type
+    global urb_type
+    global bus
+    global device
+    global endpoint
+    global outf
+    global count    
+
+    global delta_tmp
+    global last_delta
+    #array = pre_line.split(' ')
+
+    try:
+    	arrayx = array[3].split(':')
+    except:
+	print("array index error",array)
+	raise
+    bus = int(arrayx[1])
+    device = int(arrayx[2])
+    endpoint = int(arrayx[3])
+    urb_tag = array[0]
+    urb_type = urbtype_d[arrayx[0]]
+    event_type = array[2]
+    if(last_delta == None):
+        last_delta = array[1]
+
+    if(event_type == 'S'):        
+        deltax = long(array[1]) - long(last_delta)
+        '''if (deltax > 1000000) :
+            delta = str(deltax/100000) + "s"
+        elif (deltax > 1000) :
+            delta = str(deltax/1000) + 'ms'
+        else:'''
+        delta = str(deltax) + 'us'
+        
+        last_delta = array[1]
+    #print array[1]
+        print ("%d %s %d-%d-%d\t%s\t%s\t" % (count,urb_tag,bus, device, endpoint, \
+                                                 urb_type, delta),file=outf,)
+        count = count + 1
+        return 1
+    return 0
+
+def post_parse(post_line_fields,store=True):
     global urb_tag
     global delta
     global event_type
@@ -249,13 +305,13 @@ def post_parse(post_line_fields):
     global delta_tmp
 
     if (urb_type == urbtype_d['Ci'] or urb_type == urbtype_d['Co']):
-        ctl_parse(post_line_fields)
+        ctl_parse(post_line_fields,store)
     elif (urb_type == urbtype_d['Bi'] or urb_type == urbtype_d['Bo']):
-        buk_parse(post_line_fields)
+        bulk_parse(post_line_fields,store)
     elif (urb_type == urbtype_d['Ii'] or urb_type == urbtype_d['Ii']):
-        int_parse(post_line_fields)
+        int_parse(post_line_fields,store)
     elif (urb_type == urbtype_d['Zi'] or urb_type == urbtype_d['Zo']):
-        iso_parse(post_line_fields)
+        iso_parse(post_line_fields,store)
     else:
         print ("---ERR--- post_parse" ,urb_type, post_line_fields,file=outf)
 
@@ -292,6 +348,55 @@ def run(path):
                 post_line_fields = line_fields[4:]
                 #post_line = post_line.strip()
                 post_parse(post_line_fields)
+    except:
+        urb_tag = None
+        delta = None
+        event_type = None
+        urb_type = None
+        bus = None
+        device = None
+        endpoint = None
+        
+# static variable
+        delta_tmp = {}
+
+        traceback.print_exc()
+        return
+
+def frequency(path):
+    global urb_tag
+    global delta
+    global event_type
+    global urb_type
+    global bus
+    global device
+    global endpoint
+    global count 
+    global delta_tmp
+    global last_delta
+    global outf
+    args = path.strip().split(' ')
+    (options,path)=parser.parse_args(args)
+    if options.filename !=None:
+	outf=open(options.filename,"w")
+    else:
+	outf = None
+    try:
+        fh = open(path[0], "r")
+        count=1
+        while True:
+            line = fh.readline()
+            line.strip();
+            line_fields=line.split(' ');
+            
+            pre_line_fields = line_fields[:4]
+            #pre_line = pre_line.strip()
+            ret=pre_parse_freq(pre_line_fields)
+            if(event_type=='S'):
+                #print "Post"
+                post_line_fields = line_fields[4:]
+                #post_line = post_line.strip()
+                post_parse(post_line_fields,False)
     except:
         urb_tag = None
         delta = None

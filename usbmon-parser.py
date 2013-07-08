@@ -34,6 +34,9 @@ class CLI(cmd.Cmd):
     def do_parse(self,arg):
 	parser.run(arg)
 
+    def do_frequency(self,arg):
+	parser.frequency(arg)
+
     def do_quit(self, arg):
         sys.exit(1)
 
