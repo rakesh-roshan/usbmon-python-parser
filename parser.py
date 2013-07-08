@@ -231,7 +231,7 @@ def pre_parse(array):
         
     delta_tmp[urb_tag]["sub_time"] = None
     #print array[1]
-    print ("%d-%d-%d\t%s\t%s\t" % (bus, device, endpoint, \
+    print ("%s %d-%d-%d\t%s\t%s\t" % (urb_tag,bus, device, endpoint, \
                                          urb_type, delta),file=outf,)
     return 1
 
